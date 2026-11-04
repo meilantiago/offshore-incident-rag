@@ -38,7 +38,7 @@ Integration tests need Postgres: `docker compose up -d db` and `TEST_DATABASE_UR
 - Model: sonnet
 - Context: `plan.md#Manifest building` `plan.md#Manifest format` `plan.md#HTTP` `plan.md#Package layout` `plan.md#Test infrastructure`
 
-- [ ] **T05** Manifest load, validation and deterministic write
+- [x] **T05** Manifest load, validation and deterministic write
   - AC: AC-001-01, AC-001-02
   - Files: `src/offshore_rag/ingestion/manifest.py`, `tests/unit/test_manifest.py`
   - Test first: `tests/unit/test_manifest.py` — each malformed variant (missing URL, unknown type, duplicate URL, empty file) raises `ManifestError` naming the line and URL; `write_manifest` output is sorted, UTF-8, `\n`, byte-identical across calls
@@ -50,7 +50,7 @@ Integration tests need Postgres: `docker compose up -d db` and `TEST_DATABASE_UR
   - Test first: `tests/unit/test_http_client.py` — with an injected clock and sleep: spacing ≥ 1/rate, backoff on 429/503 with `Retry-After`, no retry on 404, `If-None-Match` sent and 304 surfaced, robots.txt disallow honoured
   - Done when: `python -m pytest tests/unit/test_http_client.py tests/ingestion/test_polite_client.py -q` green and `python scripts/check.py --fast` green
 
-- [ ] **T07** Listing parsers, `build_manifest` and `offshore-rag build-manifest`
+- [x] **T07** Listing parsers, `build_manifest` and `offshore-rag build-manifest`
   - AC: AC-001-01
   - Files: `src/offshore_rag/ingestion/listings.py`, `src/offshore_rag/ingestion/build.py`, `src/offshore_rag/cli.py`, `tests/unit/test_listings.py`
   - Test first: `tests/unit/test_listings.py` — each parser on the recorded fixture HTML returns the expected links, resolves relative district links, and a page with no rows returns an empty list
