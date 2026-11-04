@@ -1,6 +1,6 @@
 # ADR-0001: Base stack
 
-- **Status:** proposed
+- **Status:** accepted (2026-11-04, with spec 001)
 - **Date:** 2026-11-04
 - **Originating spec:** — (repository bootstrap)
 - **Decided by:** Tiago Meilan

@@ -1,6 +1,6 @@
 # ADR-0002: PDF text extraction with pypdfium2
 
-- **Status:** proposed
+- **Status:** accepted (2026-11-04, with spec 001)
 - **Date:** 2026-11-04
 - **Originating spec:** 001
 - **Decided by:** Tiago Meilan

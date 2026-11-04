@@ -1,11 +1,11 @@
 ---
 id: "001"
 title: Corpus ingestion
-status: draft
+status: approved
 roadmap_refs: ["R1", "brief §3.1", "brief §6"]
-approved_hash:
-approved_at:
-approved_by:
+approved_hash: sha256:0d84b12a1bbb0325764a52e77f2fca0509ce0e6809f8754198ffb4d40f93aae2
+approved_at: 2026-11-04
+approved_by: Tiagod
 ---
 
 # 001 — Corpus ingestion
