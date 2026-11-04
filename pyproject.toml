@@ -18,6 +18,9 @@ dev = [
   "ruff>=0.8",
   "mypy>=1.13",
   "pytest>=8.3",
+  "pytest-timeout>=2.3",
+  "fpdf2>=2.8",
+  "psycopg[binary]>=3.2",
 ]
 
 [tool.hatch.build.targets.wheel]
@@ -47,6 +50,8 @@ strict = true
 files = ["src"]
 
 [tool.pytest.ini_options]
+# A hung server or connection fails the test instead of stalling the run (pytest-timeout).
+timeout = 120
 markers = [
   "integration: needs a running Postgres with pgvector",
   "llm: needs a real language model (local only, never in CI)",

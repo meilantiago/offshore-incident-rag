@@ -4,7 +4,7 @@ Small, ordered tasks grouped in milestones. Each milestone is one invocation of 
 
 Integration tests need Postgres: `docker compose up -d db` and `TEST_DATABASE_URL` set (see `.env.example`).
 
-- [ ] **T01** Red acceptance tests and test infrastructure
+- [x] **T01** Red acceptance tests and test infrastructure
   - AC: AC-001-01, AC-001-02, AC-001-03, AC-001-04, AC-001-05, AC-001-06, AC-001-07, AC-001-08, AC-001-09, AC-001-10, AC-001-11, AC-001-12
   - Files: `tests/ingestion/test_*.py` (one file per row of `plan.md#Test strategy`), `tests/support/http_server.py`, `tests/support/pdfs.py`, `tests/conftest.py` (postgres fixture with a fresh schema per test), `tests/fixtures/bsee/` (trimmed listing and detail HTML, one small Safety Alert PDF without third-party images, `SOURCES.md`), `docker-compose.yml` (service `db`, image `pgvector/pgvector:pg16`), `pyproject.toml` (dev extras `fpdf2`, `pytest-timeout`), `.env.example` (`TEST_DATABASE_URL`)
   - Test first: the tests themselves, written by `test-writer` from the spec and `plan.md#Contracts`
