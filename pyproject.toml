@@ -26,7 +26,7 @@ packages = ["src/offshore_rag"]
 [tool.ruff]
 line-length = 120
 target-version = "py311"
-extend-exclude = ["data"]
+extend-exclude = ["data", "*.md"]  # code blocks in docs are illustrative, not formatted
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP", "BLE", "S110", "SIM", "RUF"]
