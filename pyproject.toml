@@ -60,6 +60,11 @@ python_version = "3.11"
 strict = true
 files = ["src"]
 
+[[tool.mypy.overrides]]
+# pypdfium2 ships no type information (no py.typed, no stubs package).
+module = ["pypdfium2", "pypdfium2.*"]
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
 # A hung server or connection fails the test instead of stalling the run (pytest-timeout).
 timeout = 120

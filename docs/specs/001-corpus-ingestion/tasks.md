@@ -61,13 +61,13 @@ Integration tests need Postgres: `docker compose up -d db` and `TEST_DATABASE_UR
 - Model: opus
 - Context: `plan.md#Parsing` `plan.md#Chunking` `plan.md#PDF` `plan.md#Chunker interface`
 
-- [ ] **T08** `parse_pdf` with pypdfium2 and image-only detection
+- [x] **T08** `parse_pdf` with pypdfium2 and image-only detection
   - AC: AC-001-05, AC-001-06, AC-001-10
   - Files: `src/offshore_rag/ingestion/pdf.py`, `tests/unit/test_pdf.py`
   - Test first: `tests/unit/test_pdf.py` — synthetic N-page PDF gives N pages, page k holds marker k only; image-only PDF gives pages flagged `image_only`; corrupt bytes raise `PdfParseError`; text is NFC with `\n` line endings
   - Done when: `python -m pytest tests/unit/test_pdf.py -q` green and `python scripts/check.py --fast` green
 
-- [ ] **T09** `Chunker` interface and `FixedWordChunker(size=250, overlap=40)`
+- [x] **T09** `Chunker` interface and `FixedWordChunker(size=250, overlap=40)`
   - AC: AC-001-06, AC-001-07
   - Files: `src/offshore_rag/ingestion/chunking.py`, `tests/unit/test_chunking_unit.py`
   - Test first: `tests/unit/test_chunking_unit.py` — page ranges from the offset map are correct when a window spans pages; no empty chunks; every text page covered; image-only pages produce no chunks; overlap is exactly `overlap` words; `chunkers_from_config` builds the configured list
