@@ -164,7 +164,7 @@ src/offshore_rag/
   ingestion/report.py       IngestionReport, DocumentOutcome, write_report, format_summary
 ```
 
-### Manifest
+### Manifest format
 `corpus/manifest.jsonl` has one JSON object per line, sorted by `source_url`, with keys sorted:
 ```json
 {"doc_type": "safety_alert", "listing_url": "https://www.bsee.gov/safety-alerts/…", "sha256": null, "source_url": "https://www.bsee.gov/sites/bsee.gov/files/….pdf", "title": "…"}
@@ -183,7 +183,7 @@ src/offshore_rag/
 ### PDF
 `parse_pdf(data) -> ParsedPdf(pages: list[PageText(number, text, image_only)])` raises `PdfParseError` for corrupt or encrypted files.
 
-### Chunking
+### Chunker interface
 ```python
 class Chunker(Protocol):
     id: str
@@ -199,7 +199,7 @@ ChunkDraft(ordinal, page_start, page_end, text)
 - `save_document(entry, fetch, sha256, raw_path, parsed, chunks_by_chunker) -> Literal["ingested", "replaced"]`, in one transaction.
 - `counts() -> CorpusCounts`
 
-### Ingestion run
+### Run and outcomes
 `run_ingest(entries, client, store, chunkers, data_dir, clock) -> IngestionReport`.
 
 `DocumentOutcome(source_url, status, stage, reason, pages, chunks, durations_ms)` has these values:
