@@ -7,7 +7,11 @@ Use these names in code, specs and tests.
 | **Corpus** | The set of source documents the system can answer from. |
 | **Manifest** | Versioned list of corpus documents (source URL, type, expected hash). Rebuilds the corpus. |
 | **Document** | One source file (a PDF report or alert) with its provenance: source URL, retrieval date, content hash. |
+| **Document type** | `safety_alert`, `panel_report` or `district_report`. |
 | **Page** | A page of a document, numbered as in the original PDF (1-based). |
+| **Image-only page** | A page with no extractable text layer (scanned). Detected and reported; not chunked. |
+| **Ingestion run** | One execution of `ingest` over a manifest. |
+| **Ingestion report** | The machine-readable summary of an ingestion run: counts, failures by stage and reason, durations. |
 | **Chunk** | A contiguous piece of text from one document, with its page range, that is indexed and retrieved. |
 | **Retrieval** | Finding the chunks most relevant to a question. **Hybrid** retrieval combines lexical (full-text) and semantic (embedding) search. |
 | **Reranking** | Re-ordering retrieved chunks with a more expensive model (a cross-encoder). |
