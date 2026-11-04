@@ -40,6 +40,15 @@ pip install -e ".[dev]"
 python scripts/check.py --all
 ```
 
+Integration tests need Postgres with pgvector. Start it with `docker compose up -d db` and point the tests at it:
+
+```bash
+export TEST_DATABASE_URL=postgresql://rag:rag@localhost:5432/rag   # PowerShell: $env:TEST_DATABASE_URL = "..."
+offshore-rag db migrate                                            # needs DATABASE_URL (see .env.example)
+```
+
+Each test gets its own schema, so they never touch your data. CI runs the same image as a service container.
+
 ## Data
 
 BSEE reports are works of the US federal government. The raw corpus is downloaded by the pipeline and never committed; the repository holds the manifest that rebuilds it.

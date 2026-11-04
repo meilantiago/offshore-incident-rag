@@ -15,19 +15,19 @@ Integration tests need Postgres: `docker compose up -d db` and `TEST_DATABASE_UR
 - Model: sonnet
 - Context: `plan.md#Configuration` `plan.md#Logging` `plan.md#New dependencies` `plan.md#Migrations` `plan.md#Tables` `plan.md#Package layout`
 
-- [ ] **T02** Runtime dependencies, settings and logging
+- [x] **T02** Runtime dependencies, settings and logging
   - AC: AC-001-04, AC-001-12
   - Files: `pyproject.toml`, `src/offshore_rag/config.py`, `src/offshore_rag/logging.py`, `tests/unit/test_config.py`
   - Test first: `tests/unit/test_config.py` — defaults (rate 1.0, retries 4, User-Agent with the repo URL and no `@`), overrides from environment, `DATABASE_URL` rendered without password
   - Done when: `python -m pytest tests/unit/test_config.py -q` green and `python scripts/check.py --fast` green
 
-- [ ] **T03** Database connection and migrations
+- [x] **T03** Database connection and migrations
   - AC: AC-001-12
   - Files: `src/offshore_rag/db/connection.py`, `src/offshore_rag/db/migrate.py`, `src/offshore_rag/db/migrations/0001_corpus.sql`, `tests/unit/test_migrate.py`
   - Test first: `tests/unit/test_migrate.py` (integration) — migrate on an empty schema creates the three tables with their checks; running it twice is a no-op; `pending_migrations` is empty afterwards and non-empty on a fresh schema; unreachable host raises `DatabaseUnavailable` whose message has no password
   - Done when: `python -m pytest tests/unit/test_migrate.py -q` green and `python scripts/check.py --fast` green
 
-- [ ] **T04** CLI skeleton with `db migrate`, and Postgres in CI
+- [x] **T04** CLI skeleton with `db migrate`, and Postgres in CI
   - AC: AC-001-12
   - Files: `src/offshore_rag/cli.py`, `pyproject.toml` (`[project.scripts] offshore-rag`), `.github/workflows/ci.yml` (service `pgvector/pgvector:pg16`, `TEST_DATABASE_URL`), `README.md` (development section: `docker compose up -d db`)
   - Test first: `tests/unit/test_cli_migrate.py` — `offshore-rag db migrate` via `typer.testing.CliRunner` applies migrations and exits 0; with an unreachable database exits 1 and names host/port/db without the password
