@@ -60,12 +60,17 @@ def build_manifest_command() -> None:
     """Walk the BSEE listing pages and write the manifest file."""
     settings = get_settings()
     configure_logging(settings.log_format)
+    skipped: list[str] = []
     with _client(settings) as client:
         try:
-            entries = build_manifest(client, settings.bsee_base_url, settings.data_dir / "listings")
+            entries = build_manifest(client, settings.bsee_base_url, settings.data_dir / "listings", skipped)
         except (ManifestBuildError, FetchError) as e:
             raise fatal(str(e)) from e
     write_manifest(entries, settings.manifest_path)
+    if skipped:
+        typer.echo(f"Skipped {len(skipped)} detail page(s) without a PDF link:")
+        for url in skipped:
+            typer.echo(f"  - {url}")
     typer.echo(f"Wrote {len(entries)} entries to {settings.manifest_path}")
 
 

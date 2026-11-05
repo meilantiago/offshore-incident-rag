@@ -157,3 +157,37 @@ def test_ac_001_01_listing_with_zero_rows_fails(http_env: IngestEnv) -> None:
     assert run.exception is None or isinstance(run.exception, SystemExit), run.describe()
     assert run.exit_code != EXIT_OK, run.describe()
     assert "safety" in run.output.lower(), "the error should say which listing came back empty"
+
+
+NO_PDF_DETAIL = "/improper-use-of-hand-tools-and-unplanned-deviations-from-job-tasks-results-in-injuries"
+
+
+def test_ac_001_01_detail_page_without_pdf_is_skipped_and_reported(http_env: IngestEnv) -> None:
+    """AC-001-01: a detail page with no PDF link is skipped; the rest of the manifest is written."""
+    serve_bsee(http_env.server)
+    http_env.server.add_html(NO_PDF_DETAIL, _fixture("safety_alert_detail_no_pdf.html"))
+    base = http_env.server.base_url
+
+    run = run_cli("build-manifest")
+
+    assert_exit(run, EXIT_OK)
+    entries = _read_manifest(http_env)
+    assert all(e["listing_url"] != base + NO_PDF_DETAIL for e in entries)
+    expected = {base + pdf for d, pdf in SA_DETAILS.items() if d != NO_PDF_DETAIL}
+    expected |= {base + pdf for pdf in PANEL_DETAILS.values()} | {base + pdf for pdf in DISTRICT_PDFS}
+    assert {str(e["source_url"]) for e in entries} == expected
+    assert base + NO_PDF_DETAIL in run.output, "the output should name the skipped detail URL"
+    assert "1" in run.output and "skipped" in run.output.lower()
+
+
+def test_ac_001_01_listing_where_every_detail_lacks_a_pdf_still_fails(http_env: IngestEnv) -> None:
+    """AC-001-01: if every Safety Alert detail page lacks a PDF the listing yields zero entries: the build fails."""
+    serve_bsee(http_env.server)
+    no_pdf = _fixture("safety_alert_detail_no_pdf.html")
+    for path in SA_DETAILS:
+        http_env.server.add_html(path, no_pdf)
+
+    run = run_cli("build-manifest")
+
+    assert run.exit_code != EXIT_OK, run.describe()
+    assert "safety" in run.output.lower()

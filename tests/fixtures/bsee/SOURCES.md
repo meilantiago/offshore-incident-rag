@@ -23,3 +23,7 @@ Tests serve these files from a local server whose address replaces `https://www.
 
 Synthetic PDFs (text with page markers, image-only, corrupt) are generated at test time by `tests/support/pdfs.py`
 and are not committed.
+
+Derived fixture (not a recording): `safety_alert_detail_no_pdf.html` is `safety_alert_detail.html` edited by hand: the
+attachment field (the PDF link) is removed and the title changed to Safety Alert 395, to reproduce a BSEE detail page
+published with no file (https://www.bsee.gov/safety-alerts/bsee-safety-alert-395-electrical-equipment-in-hazardous-locations-increase-risk-of, observed 2026-11-05).

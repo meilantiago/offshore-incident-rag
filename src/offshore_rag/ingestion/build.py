@@ -32,7 +32,13 @@ class ManifestBuildError(Exception):
     """A listing could not be turned into manifest entries (the HTML probably changed)."""
 
 
-def build_manifest(client: PoliteClient, base_url: str, listings_dir: Path) -> list[ManifestEntry]:
+def build_manifest(
+    client: PoliteClient,
+    base_url: str,
+    listings_dir: Path,
+    skipped: list[str] | None = None,
+) -> list[ManifestEntry]:
+    """Walk the listings. Detail pages with no PDF link are skipped and their URLs appended to `skipped`."""
     base = base_url.rstrip("/")
     listings_dir.mkdir(parents=True, exist_ok=True)
 
@@ -58,16 +64,23 @@ def build_manifest(client: PoliteClient, base_url: str, listings_dir: Path) -> l
     ) -> None:
         found = 0
         details: dict[str, str] = {}
+        no_pdf: set[str] = set()
         for page in range(MAX_PAGES):
             rows = parse_listing(fetch_html(f"{base}{path}?page={page}"))
             if not rows:
                 break
             for row in rows:
                 detail_url = _resolve(base, row.href)
+                if detail_url in no_pdf:
+                    continue
                 if detail_url not in details:
                     href = parse_detail(fetch_html(detail_url))
                     if href is None:
-                        raise ManifestBuildError(f"{name}: no PDF link on detail page {detail_url}")
+                        no_pdf.add(detail_url)
+                        log.warning("detail page without a PDF link, skipped", listing=name, url=detail_url)
+                        if skipped is not None:
+                            skipped.append(detail_url)
+                        continue
                     details[detail_url] = _resolve(base, href)
                 add(ManifestEntry(doc_type, details[detail_url], detail_url, row.title))
                 found += 1
