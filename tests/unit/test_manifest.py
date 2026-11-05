@@ -75,3 +75,13 @@ def test_write_is_sorted_deterministic_and_round_trips(tmp_path: Path) -> None:
     assert [json.loads(line)["source_url"] for line in lines] == ["http://x/a.pdf", "http://x/b.pdf"]
     assert list(json.loads(lines[0])) == sorted(json.loads(lines[0]))
     assert load_manifest(first) == sorted(entries, key=lambda e: e.source_url)
+
+
+def test_unicode_line_separators_in_titles_round_trip(tmp_path: Path) -> None:
+    entries = [
+        ManifestEntry("safety_alert", "http://x/a.pdf", "http://x/l", "a\u2028b\u2029c\u0085d"),
+        ManifestEntry("panel_report", "http://x/b.pdf", "http://x/l", "\x0b\x0c\x1c\x1d\x1e end"),
+    ]
+    path = tmp_path / "m.jsonl"
+    write_manifest(entries, path)
+    assert load_manifest(path) == sorted(entries, key=lambda e: e.source_url)

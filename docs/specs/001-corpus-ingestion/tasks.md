@@ -121,7 +121,7 @@ Confirmed findings from `/sdd-verify`, as loose T90+ tasks. Each may carry its o
   - Context: `plan.md#Manifest format` `plan.md#HTTP` `plan.md#Run and outcomes`
   - Why: `PoliteClient.allowed` raises `ValueError` from `urlsplit`; `_process` only catches `FetchError` and the CLI only `psycopg.Error`/`OSError`, so today the whole run dies without a report. Consider mapping `httpx.DecodingError` to a `FetchError` in the same change.
 
-- [ ] **T92** Manifests whose titles contain Unicode line separators round-trip
+- [x] **T92** Manifests whose titles contain Unicode line separators round-trip
   - AC: AC-001-01, AC-001-02
   - Files: `src/offshore_rag/ingestion/manifest.py`, `tests/unit/test_manifest.py`
   - Test first: `tests/unit/test_manifest.py` — `write_manifest` then `load_manifest` with a title containing U+2028, U+2029 and U+0085 returns the same entries

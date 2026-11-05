@@ -9,6 +9,8 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 DOC_TYPES = ("safety_alert", "panel_report", "district_report")
+# Entries are separated by "\n" only: str.splitlines() would also split on U+2028, U+2029, U+0085.
+_LINE_SEPARATOR = "\n"
 
 
 class ManifestError(Exception):
@@ -52,7 +54,7 @@ def load_manifest(path: Path) -> list[ManifestEntry]:
     entries: list[ManifestEntry] = []
     problems: list[str] = []
     first_line_of: dict[str, int] = {}
-    for number, line in enumerate(text.splitlines(), start=1):
+    for number, line in enumerate(text.split(_LINE_SEPARATOR), start=1):
         if not line.strip():
             continue
         try:
