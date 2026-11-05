@@ -111,6 +111,8 @@ class PoliteClient:
                     self._request_done()
             except httpx.TimeoutException:
                 reason, retry_after = "timeout", None
+            except httpx.DecodingError as e:
+                raise FetchError(url, f"decoding_error:{type(e).__name__}", attempts) from e
             except httpx.TransportError as e:
                 reason, retry_after = f"connection_error:{type(e).__name__}", None
             else:
@@ -144,7 +146,10 @@ class PoliteClient:
     # -- robots.txt ------------------------------------------------------------------------------------------
     def allowed(self, url: str) -> bool:
         """Whether robots.txt lets this client fetch `url`. A missing robots.txt allows everything."""
-        parts = urlsplit(url)
+        try:
+            parts = urlsplit(url)
+        except ValueError as e:
+            raise FetchError(url, "invalid_url", 0) from e
         origin = f"{parts.scheme}://{parts.netloc}"
         parser = self._robots.get(origin)
         if parser is None:

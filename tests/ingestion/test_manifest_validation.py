@@ -100,3 +100,17 @@ def test_ac_001_02_every_offending_entry_is_named(db_env: IngestEnv) -> None:
     assert str(dup["source_url"]) in run.output, run.describe()
     assert re.search(r"line\W*5\b", run.output, re.IGNORECASE), run.describe()
     _assert_nothing_happened(db_env)
+
+
+@pytest.mark.parametrize("bad_url", ["/sites/bsee.gov/files/rel.pdf", "ftp://example.org/a.pdf", "http://[bad/a.pdf"])
+def test_ac_001_02_non_absolute_http_source_url_is_named(db_env: IngestEnv, bad_url: str) -> None:
+    """AC-001-02: a relative, non-http(s) or unparseable source URL -> exit 1, named, before any request."""
+    migrate_schema(db_env.db)
+    bad = {**_valid(db_env, "x"), "source_url": bad_url}
+    db_env.write_manifest([_valid(db_env, "ok"), bad])
+
+    run = db_env.ingest()
+
+    assert_exit(run, EXIT_FATAL)
+    assert bad_url in run.output, run.describe()
+    _assert_nothing_happened(db_env)

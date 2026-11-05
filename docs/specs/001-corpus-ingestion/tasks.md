@@ -113,7 +113,7 @@ Confirmed findings from `/sdd-verify`, as loose T90+ tasks. Each may carry its o
   - Context: `plan.md#CLI and exit codes` `plan.md#Configuration`
   - Why: `conninfo_to_dict` raises `psycopg.ProgrammingError`, not `ValueError`, so `describe_database()` lets it escape from inside `connect()`'s `except` handler and its message echoes the conninfo string with the password.
 
-- [ ] **T91** A malformed `source_url` fails only its own document; the manifest rejects non-absolute http(s) URLs
+- [x] **T91** A malformed `source_url` fails only its own document; the manifest rejects non-absolute http(s) URLs
   - AC: AC-001-02, AC-001-10
   - Files: `src/offshore_rag/ingestion/manifest.py`, `src/offshore_rag/ingestion/http.py`, `src/offshore_rag/ingestion/pipeline.py`, `tests/ingestion/test_manifest_validation.py`, `tests/unit/test_pipeline.py`
   - Test first: `tests/ingestion/test_manifest_validation.py` — an entry with a relative or non-http(s) `source_url` is named and the command exits 1 before any request; `tests/unit/test_pipeline.py` — an entry whose URL makes `urlsplit` raise (`http://[bad/a.pdf`) is a `download` failure in the report while the other documents are ingested and the run exits 3

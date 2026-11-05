@@ -142,3 +142,15 @@ def test_report_carries_network_counters_and_durations(rig: Rig) -> None:
     assert report.bytes_downloaded >= len(data)
     assert set(report.durations_ms) == {"total", "download", "parse", "chunk", "store"}
     assert report.durations_ms["total"] >= report.durations_ms["store"]
+
+
+def test_ac_001_10_unparseable_url_fails_only_its_document(rig: Rig) -> None:
+    """AC-001-10: a URL that makes urlsplit raise is a download failure; the others are still ingested."""
+    rig.server.add("/ok.pdf", pdfs.text_pdf(1))
+    bad = ManifestEntry("safety_alert", "http://[bad/a.pdf", rig.server.url("/listing"), "", None)
+    report = rig.run(bad, rig.entry("/ok.pdf"))
+    assert [(d.status, d.stage, d.reason) for d in report.documents] == [
+        ("failed", "download", "invalid_url"),
+        ("ingested", None, None),
+    ]
+    assert report.has_failures

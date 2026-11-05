@@ -6,6 +6,7 @@ import json
 from collections.abc import Iterable
 from dataclasses import asdict, dataclass
 from pathlib import Path
+from urllib.parse import urlsplit
 
 DOC_TYPES = ("safety_alert", "panel_report", "district_report")
 
@@ -25,6 +26,18 @@ class ManifestEntry:
     listing_url: str
     title: str = ""
     sha256: str | None = None
+
+
+def _url_problem(url: str) -> str | None:
+    """Why `url` is not an absolute http(s) URL, or None when it is."""
+    try:
+        parts = urlsplit(url)
+        host = parts.hostname
+    except ValueError as e:
+        return f"source_url is not a valid URL ({e})"
+    if parts.scheme not in ("http", "https") or not host:
+        return "source_url must be an absolute http(s) URL"
+    return None
 
 
 def load_manifest(path: Path) -> list[ManifestEntry]:
@@ -53,6 +66,10 @@ def load_manifest(path: Path) -> list[ManifestEntry]:
         url = raw.get("source_url")
         if not isinstance(url, str) or not url.strip():
             problems.append(f"line {number}: missing source_url")
+            continue
+        url_problem = _url_problem(url)
+        if url_problem:
+            problems.append(f"line {number}: {url}: {url_problem}")
             continue
         doc_type = raw.get("doc_type")
         if doc_type not in DOC_TYPES:
