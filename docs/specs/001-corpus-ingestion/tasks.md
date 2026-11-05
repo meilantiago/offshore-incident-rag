@@ -144,3 +144,11 @@ Confirmed findings from `/sdd-verify`, as loose T90+ tasks. Each may carry its o
   - Done when: `python -m pytest tests/unit/test_http_client.py tests/unit/test_pipeline.py -q` green and `python scripts/check.py --fast` green
   - Context: `plan.md#HTTP` `plan.md#Run and outcomes`
   - Why: `PoliteClient.get` follows redirects with `urljoin(current, location)`, which raises `ValueError` on a malformed `Location` (verified: `Invalid IPv6 URL`); it escapes `_process` and the CLI and kills the run without a report, the same class as T91/T93.
+
+- [ ] **T95** A detail page without a PDF link is skipped and reported; it no longer aborts `build-manifest`
+  - AC: AC-001-01
+  - Files: `src/offshore_rag/ingestion/build.py`, `src/offshore_rag/cli.py`, `tests/ingestion/test_manifest_build.py`, `tests/fixtures/bsee/` (one recorded detail page with no PDF link)
+  - Test first: `tests/ingestion/test_manifest_build.py` — the recorded listing plus one detail page with no PDF link, served locally: `build-manifest` exits 0, the manifest has every other entry and none for that page, and the output names the skipped detail URL and the count; a listing where every detail page lacks a PDF still fails
+  - Done when: `python -m pytest tests/ingestion/test_manifest_build.py tests/unit/test_listings.py -q` green and `python scripts/check.py --fast` green
+  - Context: `plan.md#Manifest building`
+  - Why: against the real site, `build-manifest` raised `ManifestBuildError` on `https://www.bsee.gov/safety-alerts/bsee-safety-alert-395-electrical-equipment-in-hazardous-locations-increase-risk-of`, whose HTML has no PDF link, so no manifest could be built at all.
