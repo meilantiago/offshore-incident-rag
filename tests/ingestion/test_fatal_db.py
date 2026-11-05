@@ -83,3 +83,25 @@ def test_ac_001_12_missing_schema_is_fatal_before_download(db_env: IngestEnv, li
     assert password not in run.output, "the password must never be printed"
     assert re.search(r"schema|migrat", run.output, re.IGNORECASE), "the error should say the schema is missing"
     assert not db_env.db.table_exists("documents"), "ingest must not migrate by itself"
+
+
+MALFORMED_URL = "rag:SECRETPW@localhost/rag"
+
+
+@pytest.mark.parametrize("args", [("ingest",), ("db", "migrate")])
+def test_ac_001_12_malformed_database_url_is_clean_fatal_without_password(
+    http_env: IngestEnv, args: tuple[str, ...]
+) -> None:
+    """AC-001-12: an unparseable DATABASE_URL → exit 1, names the database connection, no password, no traceback."""
+    from tests.support.ingest import run_cli
+
+    http_env.setenv("DATABASE_URL", MALFORMED_URL)
+    _valid_manifest(http_env)
+
+    run = run_cli(*args)
+
+    assert_exit(run, EXIT_FATAL)
+    assert "SECRETPW" not in run.output, run.describe()
+    assert "Traceback" not in run.output
+    assert re.search(r"database", run.output, re.IGNORECASE), run.describe()
+    assert http_env.server.requests == []

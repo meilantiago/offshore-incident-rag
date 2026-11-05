@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Annotated
 
+import psycopg
 from psycopg.conninfo import conninfo_to_dict
 from pydantic import SecretStr, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
@@ -41,7 +42,7 @@ class Settings(BaseSettings):
             return "DATABASE_URL is not set"
         try:
             params = conninfo_to_dict(self.database_url.get_secret_value())
-        except ValueError:
+        except (ValueError, psycopg.Error):
             return "DATABASE_URL is not a valid connection string"
         host = params.get("host") or params.get("hostaddr") or "localhost"
         port = params.get("port") or "5432"

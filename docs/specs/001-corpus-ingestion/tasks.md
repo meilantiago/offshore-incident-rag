@@ -104,3 +104,27 @@ Integration tests need Postgres: `docker compose up -d db` and `TEST_DATABASE_UR
 
 ## Verification fixes
 Confirmed findings from `/sdd-verify`, as loose T90+ tasks. Each may carry its own `Context`.
+
+- [x] **T90** A malformed `DATABASE_URL` is a clean fatal error that never prints the password
+  - AC: AC-001-12
+  - Files: `src/offshore_rag/config.py`, `src/offshore_rag/db/connection.py`, `tests/ingestion/test_fatal_db.py`
+  - Test first: `tests/ingestion/test_fatal_db.py` — with `DATABASE_URL=rag:SECRETPW@localhost/rag` (no scheme, unparseable), `ingest` and `db migrate` exit with the fatal code, print an error naming the database connection, and neither stdout nor stderr contains `SECRETPW` or a traceback
+  - Done when: `python -m pytest tests/ingestion/test_fatal_db.py -q` green and `python scripts/check.py --fast` green
+  - Context: `plan.md#CLI and exit codes` `plan.md#Configuration`
+  - Why: `conninfo_to_dict` raises `psycopg.ProgrammingError`, not `ValueError`, so `describe_database()` lets it escape from inside `connect()`'s `except` handler and its message echoes the conninfo string with the password.
+
+- [ ] **T91** A malformed `source_url` fails only its own document; the manifest rejects non-absolute http(s) URLs
+  - AC: AC-001-02, AC-001-10
+  - Files: `src/offshore_rag/ingestion/manifest.py`, `src/offshore_rag/ingestion/http.py`, `src/offshore_rag/ingestion/pipeline.py`, `tests/ingestion/test_manifest_validation.py`, `tests/unit/test_pipeline.py`
+  - Test first: `tests/ingestion/test_manifest_validation.py` — an entry with a relative or non-http(s) `source_url` is named and the command exits 1 before any request; `tests/unit/test_pipeline.py` — an entry whose URL makes `urlsplit` raise (`http://[bad/a.pdf`) is a `download` failure in the report while the other documents are ingested and the run exits 3
+  - Done when: `python -m pytest tests/ingestion/test_manifest_validation.py tests/unit/test_pipeline.py -q` green and `python scripts/check.py --fast` green
+  - Context: `plan.md#Manifest format` `plan.md#HTTP` `plan.md#Run and outcomes`
+  - Why: `PoliteClient.allowed` raises `ValueError` from `urlsplit`; `_process` only catches `FetchError` and the CLI only `psycopg.Error`/`OSError`, so today the whole run dies without a report. Consider mapping `httpx.DecodingError` to a `FetchError` in the same change.
+
+- [ ] **T92** Manifests whose titles contain Unicode line separators round-trip
+  - AC: AC-001-01, AC-001-02
+  - Files: `src/offshore_rag/ingestion/manifest.py`, `tests/unit/test_manifest.py`
+  - Test first: `tests/unit/test_manifest.py` — `write_manifest` then `load_manifest` with a title containing U+2028, U+2029 and U+0085 returns the same entries
+  - Done when: `python -m pytest tests/unit/test_manifest.py -q` green and `python scripts/check.py --fast` green
+  - Context: `plan.md#Manifest format`
+  - Why: `write_manifest` uses `ensure_ascii=False`; `load_manifest` uses `str.splitlines()`, which also splits on those characters. Split on `"\n"` only.
