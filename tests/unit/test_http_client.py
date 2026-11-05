@@ -143,3 +143,16 @@ def test_robots_disallow_and_missing_robots() -> None:
     assert client.allowed("http://h/public/a")
     assert not client.allowed("http://h/private/a")
     assert client.allowed("http://none/private/a")
+
+
+def test_ac_001_10_malformed_redirect_location_is_invalid_redirect() -> None:
+    """AC-001-10: a redirect whose Location cannot be joined fails only this download."""
+    t = FakeTime()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(302, headers={"Location": "http://[bad/x.pdf"})
+
+    client = make(handler, t)
+    with pytest.raises(FetchError) as info:
+        client.get("http://h/old")
+    assert info.value.reason == "invalid_redirect"

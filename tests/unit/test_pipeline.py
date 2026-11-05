@@ -164,3 +164,12 @@ def test_ac_001_10_invalid_port_fails_only_its_document(rig: Rig, bad_url: str) 
     report = rig.run(bad, rig.entry("/ok.pdf"))
     assert rig.statuses(report) == [("failed", "download", "invalid_url"), ("ingested", None, None)]
     assert report.has_failures
+
+
+def test_ac_001_10_malformed_redirect_fails_only_its_document(rig: Rig) -> None:
+    """AC-001-10: a redirect with a malformed Location is a download failure `invalid_redirect`."""
+    rig.server.add("/ok.pdf", pdfs.text_pdf(1))
+    rig.server.redirect("/moved.pdf", "http://[bad/x.pdf", 302)
+    report = rig.run(rig.entry("/moved.pdf"), rig.entry("/ok.pdf"))
+    assert rig.statuses(report) == [("failed", "download", "invalid_redirect"), ("ingested", None, None)]
+    assert report.has_failures

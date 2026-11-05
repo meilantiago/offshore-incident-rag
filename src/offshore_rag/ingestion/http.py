@@ -123,7 +123,10 @@ class PoliteClient:
                     redirects += 1
                     if redirects > MAX_REDIRECTS:
                         raise FetchError(url, "too_many_redirects", attempts)
-                    current = urljoin(current, response.headers["location"])
+                    try:
+                        current = urljoin(current, response.headers["location"])
+                    except ValueError as e:
+                        raise FetchError(url, "invalid_redirect", attempts) from e
                     continue
                 if status in (200, 304):
                     self.bytes_downloaded += len(response.content)

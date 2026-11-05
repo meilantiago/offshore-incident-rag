@@ -136,3 +136,11 @@ Confirmed findings from `/sdd-verify`, as loose T90+ tasks. Each may carry its o
   - Done when: `python -m pytest tests/ingestion/test_manifest_validation.py tests/unit/test_pipeline.py -q` green and `python scripts/check.py --fast` green
   - Context: `plan.md#Manifest format` `plan.md#HTTP` `plan.md#Run and outcomes`
   - Why: `urlsplit` and `.hostname` accept a non-numeric port, so `_url_problem` passes it; `PoliteClient.allowed` then raises `httpx.InvalidURL` (not a `TransportError`, not a `ValueError`), which escapes `_process` and the CLI and kills the run without a report. Check `parts.port` in `_url_problem` and map `httpx.InvalidURL` to `FetchError(url, "invalid_url", ...)` in `allowed` and `get`.
+
+- [x] **T94** A redirect with a malformed `Location` fails only its own document
+  - AC: AC-001-10
+  - Files: `src/offshore_rag/ingestion/http.py`, `tests/unit/test_http_client.py`, `tests/unit/test_pipeline.py`
+  - Test first: `tests/unit/test_http_client.py` — a 302 whose `Location` is `http://[bad/x.pdf` makes `PoliteClient.get` raise `FetchError` with reason `invalid_redirect`; `tests/unit/test_pipeline.py` — the same redirect for one document is a `download` failure with reason `invalid_redirect` while the other documents are ingested
+  - Done when: `python -m pytest tests/unit/test_http_client.py tests/unit/test_pipeline.py -q` green and `python scripts/check.py --fast` green
+  - Context: `plan.md#HTTP` `plan.md#Run and outcomes`
+  - Why: `PoliteClient.get` follows redirects with `urljoin(current, location)`, which raises `ValueError` on a malformed `Location` (verified: `Invalid IPv6 URL`); it escapes `_process` and the CLI and kills the run without a report, the same class as T91/T93.
