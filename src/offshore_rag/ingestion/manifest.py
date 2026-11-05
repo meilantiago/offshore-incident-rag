@@ -35,6 +35,7 @@ def _url_problem(url: str) -> str | None:
     try:
         parts = urlsplit(url)
         host = parts.hostname
+        parts.port  # noqa: B018 - raises ValueError for a non-numeric or out-of-range port
     except ValueError as e:
         return f"source_url is not a valid URL ({e})"
     if parts.scheme not in ("http", "https") or not host:

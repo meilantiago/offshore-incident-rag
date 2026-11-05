@@ -109,6 +109,8 @@ class PoliteClient:
                     response = self._client.get(current, headers=headers)
                 finally:
                     self._request_done()
+            except httpx.InvalidURL as e:
+                raise FetchError(url, "invalid_url", attempts) from e
             except httpx.TimeoutException:
                 reason, retry_after = "timeout", None
             except httpx.DecodingError as e:
@@ -148,6 +150,7 @@ class PoliteClient:
         """Whether robots.txt lets this client fetch `url`. A missing robots.txt allows everything."""
         try:
             parts = urlsplit(url)
+            parts.port  # noqa: B018 - raises ValueError for a non-numeric or out-of-range port
         except ValueError as e:
             raise FetchError(url, "invalid_url", 0) from e
         origin = f"{parts.scheme}://{parts.netloc}"

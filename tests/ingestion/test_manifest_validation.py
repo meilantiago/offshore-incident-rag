@@ -102,7 +102,16 @@ def test_ac_001_02_every_offending_entry_is_named(db_env: IngestEnv) -> None:
     _assert_nothing_happened(db_env)
 
 
-@pytest.mark.parametrize("bad_url", ["/sites/bsee.gov/files/rel.pdf", "ftp://example.org/a.pdf", "http://[bad/a.pdf"])
+@pytest.mark.parametrize(
+    "bad_url",
+    [
+        "/sites/bsee.gov/files/rel.pdf",
+        "ftp://example.org/a.pdf",
+        "http://[bad/a.pdf",
+        "http://host:abc/a.pdf",
+        "http://host:99999/a.pdf",
+    ],
+)
 def test_ac_001_02_non_absolute_http_source_url_is_named(db_env: IngestEnv, bad_url: str) -> None:
     """AC-001-02: a relative, non-http(s) or unparseable source URL -> exit 1, named, before any request."""
     migrate_schema(db_env.db)

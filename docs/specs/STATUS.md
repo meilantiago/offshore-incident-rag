@@ -5,4 +5,4 @@ States: see [docs/workflow.md](../workflow.md#spec-states).
 
 | Spec | Title | State | AC with test | Tasks |
 |---|---|---|---|---|
-| [001](001-corpus-ingestion/spec.md) | Corpus ingestion | done | 12/12 | 16/16 |
+| [001](001-corpus-ingestion/spec.md) | Corpus ingestion | done | 12/12 | 17/17 |

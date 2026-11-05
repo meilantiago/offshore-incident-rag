@@ -154,3 +154,13 @@ def test_ac_001_10_unparseable_url_fails_only_its_document(rig: Rig) -> None:
         ("ingested", None, None),
     ]
     assert report.has_failures
+
+
+@pytest.mark.parametrize("bad_url", ["http://host:abc/a.pdf", "http://host:99999/a.pdf"])
+def test_ac_001_10_invalid_port_fails_only_its_document(rig: Rig, bad_url: str) -> None:
+    """AC-001-10: an invalid port is a download failure `invalid_url`; the others are still ingested."""
+    rig.server.add("/ok.pdf", pdfs.text_pdf(1))
+    bad = ManifestEntry("safety_alert", bad_url, rig.server.url("/listing"), "", None)
+    report = rig.run(bad, rig.entry("/ok.pdf"))
+    assert rig.statuses(report) == [("failed", "download", "invalid_url"), ("ingested", None, None)]
+    assert report.has_failures

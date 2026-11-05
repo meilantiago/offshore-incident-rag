@@ -128,3 +128,11 @@ Confirmed findings from `/sdd-verify`, as loose T90+ tasks. Each may carry its o
   - Done when: `python -m pytest tests/unit/test_manifest.py -q` green and `python scripts/check.py --fast` green
   - Context: `plan.md#Manifest format`
   - Why: `write_manifest` uses `ensure_ascii=False`; `load_manifest` uses `str.splitlines()`, which also splits on those characters. Split on `"\n"` only.
+
+- [x] **T93** A `source_url` with an invalid port is rejected by the manifest and, if it reaches the client, fails only its own document
+  - AC: AC-001-02, AC-001-10
+  - Files: `src/offshore_rag/ingestion/manifest.py`, `src/offshore_rag/ingestion/http.py`, `tests/ingestion/test_manifest_validation.py`, `tests/unit/test_pipeline.py`
+  - Test first: `tests/ingestion/test_manifest_validation.py` — entries with `http://host:abc/a.pdf` and `http://host:99999/a.pdf` are named and the command exits 1 before any request; `tests/unit/test_pipeline.py` — the same URL given straight to `run_ingest` is a `download` failure with reason `invalid_url` while the other documents are ingested
+  - Done when: `python -m pytest tests/ingestion/test_manifest_validation.py tests/unit/test_pipeline.py -q` green and `python scripts/check.py --fast` green
+  - Context: `plan.md#Manifest format` `plan.md#HTTP` `plan.md#Run and outcomes`
+  - Why: `urlsplit` and `.hostname` accept a non-numeric port, so `_url_problem` passes it; `PoliteClient.allowed` then raises `httpx.InvalidURL` (not a `TransportError`, not a `ValueError`), which escapes `_process` and the CLI and kills the run without a report. Check `parts.port` in `_url_problem` and map `httpx.InvalidURL` to `FetchError(url, "invalid_url", ...)` in `allowed` and `get`.
