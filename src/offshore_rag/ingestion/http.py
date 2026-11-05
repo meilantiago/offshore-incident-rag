@@ -47,7 +47,7 @@ class PoliteClient:
         rate_per_second: float,
         max_retries: int,
         timeout: float,
-        clock: Callable[[], float] = time.monotonic,
+        clock: Callable[[], float] = time.perf_counter,  # high resolution: monotonic ticks at 15.6 ms on Windows
         sleep: Callable[[float], None] = time.sleep,
         transport: httpx.BaseTransport | None = None,
     ) -> None:
@@ -84,6 +84,11 @@ class PoliteClient:
             self._sleep(start - now)
         self._next_slot = start + self._interval
 
+    def _request_done(self) -> None:
+        # The next request also waits a full interval after this one completed, so the spacing seen by the server
+        # holds even when this request was slow to reach it (connection setup).
+        self._next_slot = max(self._next_slot, self._clock() + self._interval)
+
     # -- requests --------------------------------------------------------------------------------------------
     def get(self, url: str, etag: str | None = None, last_modified: str | None = None) -> FetchResult:
         headers: dict[str, str] = {}
@@ -100,7 +105,10 @@ class PoliteClient:
             attempts += 1
             self.requests += 1
             try:
-                response = self._client.get(current, headers=headers)
+                try:
+                    response = self._client.get(current, headers=headers)
+                finally:
+                    self._request_done()
             except httpx.TimeoutException:
                 reason, retry_after = "timeout", None
             except httpx.TransportError as e:

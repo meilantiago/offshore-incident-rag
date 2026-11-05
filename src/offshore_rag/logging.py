@@ -20,6 +20,11 @@ def configure_logging(log_format: str = "console") -> None:
             renderer,
         ],
         wrapper_class=structlog.make_filtering_bound_logger(logging.INFO),
-        logger_factory=structlog.PrintLoggerFactory(file=sys.stderr),
+        logger_factory=_stderr_logger,
         cache_logger_on_first_use=False,
     )
+
+
+def _stderr_logger(*args: object) -> structlog.PrintLogger:
+    """A logger on the *current* `sys.stderr`, so a stream swapped after configuration (tests, CLI runners) is used."""
+    return structlog.PrintLogger(file=sys.stderr)

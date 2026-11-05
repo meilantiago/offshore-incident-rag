@@ -44,7 +44,7 @@ Integration tests need Postgres: `docker compose up -d db` and `TEST_DATABASE_UR
   - Test first: `tests/unit/test_manifest.py` — each malformed variant (missing URL, unknown type, duplicate URL, empty file) raises `ManifestError` naming the line and URL; `write_manifest` output is sorted, UTF-8, `\n`, byte-identical across calls
   - Done when: `python -m pytest tests/unit/test_manifest.py -q` green and `python scripts/check.py --fast` green
 
-- [ ] **T06** PoliteClient: User-Agent, rate limit, retries, conditional requests, robots.txt
+- [x] **T06** PoliteClient: User-Agent, rate limit, retries, conditional requests, robots.txt
   - AC: AC-001-04
   - Files: `src/offshore_rag/ingestion/http.py`, `tests/unit/test_http_client.py`
   - Test first: `tests/unit/test_http_client.py` — with an injected clock and sleep: spacing ≥ 1/rate, backoff on 429/503 with `Retry-After`, no retry on 404, `If-None-Match` sent and 304 surfaced, robots.txt disallow honoured
@@ -78,25 +78,25 @@ Integration tests need Postgres: `docker compose up -d db` and `TEST_DATABASE_UR
 - Model: opus
 - Context: `plan.md#Ingestion run` `plan.md#Change detection` `plan.md#Raw files` `plan.md#Replacement` `plan.md#Store` `plan.md#Run and outcomes` `plan.md#CLI and exit codes`
 
-- [ ] **T10** `CorpusStore` with atomic insert and replacement
+- [x] **T10** `CorpusStore` with atomic insert and replacement
   - AC: AC-001-03, AC-001-08, AC-001-09
   - Files: `src/offshore_rag/ingestion/store.py`, `tests/unit/test_store.py`
   - Test first: `tests/unit/test_store.py` (integration) — insert then replace keeps one row per URL and removes old pages and chunks; an exception raised mid-transaction leaves the previous version byte-identical; `counts()` matches the rows
   - Done when: `python -m pytest tests/unit/test_store.py -q` green and `python scripts/check.py --fast` green
 
-- [ ] **T11** `run_ingest`: download, change detection, raw files, failure isolation
+- [x] **T11** `run_ingest`: download, change detection, raw files, failure isolation
   - AC: AC-001-03, AC-001-06, AC-001-08, AC-001-09, AC-001-10
   - Files: `src/offshore_rag/ingestion/pipeline.py`, `tests/unit/test_pipeline.py`
   - Test first: `tests/unit/test_pipeline.py` — outcome per document for 304, same-hash 200, changed bytes, `hash_mismatch`, 404 on an already stored document (kept), corrupt PDF (stage `parse`); raw file saved as `data/raw/<sha256>.pdf`
   - Done when: `python -m pytest tests/unit/test_pipeline.py tests/ingestion/test_ingest_provenance.py tests/ingestion/test_reingest.py tests/ingestion/test_image_only.py tests/ingestion/test_chunking.py tests/ingestion/test_pdf_pages.py -q` green and `python scripts/check.py --fast` green
 
-- [ ] **T12** Ingestion report and stdout summary
+- [x] **T12** Ingestion report and stdout summary
   - AC: AC-001-11
   - Files: `src/offshore_rag/ingestion/report.py`, `tests/unit/test_report.py`
   - Test first: `tests/unit/test_report.py` — JSON has every count, failures with URL/stage/reason, per-stage durations, bytes, requests and retries, image-only share and chunk size min/median/max; `format_summary` shows the same numbers
   - Done when: `python -m pytest tests/unit/test_report.py -q` green and `python scripts/check.py --fast` green
 
-- [ ] **T13** `offshore-rag ingest`: validation, fatal checks and exit codes
+- [x] **T13** `offshore-rag ingest`: validation, fatal checks and exit codes
   - AC: AC-001-02, AC-001-10, AC-001-11, AC-001-12
   - Files: `src/offshore_rag/cli.py`, `tests/unit/test_cli_ingest.py`
   - Test first: `tests/unit/test_cli_ingest.py` — invalid manifest exits 1 before any request; unmigrated or unreachable database exits 1 before any request; partial failure exits 3; full success exits 0; report path printed
