@@ -61,11 +61,11 @@ Terms used in the acceptance criteria:
 - **AC-002-02** — Given configuration that names an unknown strategy or an unknown document type, when the operator runs `ingest` or re-chunking, then the command exits with the fatal code before any download or database write. The error names the offending setting, the available strategies and the valid document types.
 - **AC-002-03** — Given the committed district report fixture (MMS Form 2010), when it is chunked with `structure_aware`, then every narrative field 17 to 24 that has text in the fixture is in at least one chunk whose section label names that field's number and title. No chunk holds text from two different fields, and every word of each field's text appears in that field's chunks. A field over the size cap is split by the splitting rule into chunks of at most 250 words that share its section label and do not overlap.
 - **AC-002-04** — Given the same district fixture, when it is chunked with `structure_aware`, then no chunk contains text from page 1: no checkbox-grid option labels (FIRE, EXPLOSION, FATALITY, COLLISION…) and no loose page-1 field. No chunk contains a repeated page-header line (`PAGE: N OF`, `MMS - FORM 2010`, `EV2010R`, `For Public Release`).
-- **AC-002-05** — Given the committed panel report fixture, trimmed to its Contents page, its list of acronyms and two or three sections, when it is chunked with `structure_aware`, then:
+- **AC-002-05** — Given the committed panel report fixture, trimmed to its Contents page, its list of acronyms, its figure list and two or three sections, when it is chunked with `structure_aware`, then:
   - every section heading in the fixture is in at least one chunk labelled with that section's title;
   - no chunk holds text from two sections, and long sections are split by the splitting rule within the size cap;
   - the list of acronyms is in its own chunk or chunks, labelled `acronyms`;
-  - the Contents page and, when present, the figure list are in no chunk;
+  - the Contents page and the figure list are in no chunk (the fixture includes a figure-list page);
   - no chunk contains the page-number line at the top of a page.
 - **AC-002-06** — Given the committed Safety Alert fixture, when it is chunked with `structure_aware`, then:
   - with a size cap at least the alert's length, it is exactly one chunk holding the whole alert text, from its first to its last text page;
@@ -148,14 +148,17 @@ Stored page text is unchanged: removed content is dropped in the chunker, not in
 - [x] **5. Panel front matter** → the Contents page and the figure list produce no chunks. The list of acronyms goes into its own chunk labelled `acronyms`. The page-number first line is removed (AC-002-05).
 - [x] **6. Structure not recognized** → a marked fallback: fixed windows under `structure_aware` (250 words, no overlap) labelled `structure_not_recognized`. The document does not count as failed, and the reports list it (AC-002-07).
 - [x] **7. Sentence-based and semantic chunkers** → out of 002, with the retrieval spec.
-- [x] **8. Safety Alerts** → section boundaries are heading lines ending in `:`. Old MMS "Notice No. N" alerts are one chunk if they fit and are otherwise split by paragraph under the cap. The Contact/Phone header block is removed and photo captions stay (AC-002-06).
+- [x] **8. Safety Alerts** → section boundaries are heading lines ending in `:`. Old MMS "Notice No. N" alerts are one chunk if they fit and are otherwise split by paragraph under the cap. Only the Contact and Phone lines are removed; the alert number, date and title stay, and so do photo captions (AC-002-06).
 - [x] **9. Corpus-level targets** → reported only, no gate. The fixtures keep exact expectations (AC-002-11), and quality gates arrive with the golden set in the retrieval spec.
 - [x] **10. Strategy identity** → one strategy id, `structure_aware`, which dispatches on `doc_type` and supports all three types. Configuration per document type still decides which strategies run (AC-002-01, AC-002-02).
 - [x] **11. Re-chunking** → in scope, without download (AC-002-09).
-- [x] **12. Glossary** → the definitions below. They change `docs/glossary.md`, which is outside `docs/specs/`, so they are applied together with this spec (the plan decides how), not by the spec's author.
+- [x] **12. Glossary** → the definitions below, applied to `docs/glossary.md` with this draft.
   - Amended **Chunk**: A piece of text from one document, with its page range, its chunking strategy and (for `structure_aware`) its section label, that is indexed and retrieved. A `fixed_words` chunk is a contiguous slice of its pages' text. A `structure_aware` chunk keeps the words of its pages in order and contiguous, except for removed content.
   - **Chunking strategy**: An implementation of the `Chunker` interface with its parameters, recorded on every chunk. `fixed_words` is the control; `structure_aware` follows the structure of each document type.
   - **Page furniture**: Text repeated on the pages of a document that is not content: the Form 2010 page header, the page-number line of panel reports.
   - **Narrative field**: A numbered free-text field of MMS Form 2010 (17 to 24), the unit of `structure_aware` chunks for district reports.
   - **Section label**: The field or section a chunk belongs to, stored beside the chunk text and never inside it. Special values: `acronyms`, `structure_not_recognized`.
   - **Structural report**: The report of chunk quality per strategy and document type (size, page span, page-furniture and checkbox-grid noise, boundary crossings, coverage), computed without a golden set.
+- [x] **13. Size cap in tests** → the cap is a recorded parameter (250 by default); a test may set it, so AC-002-06 can check the "fits" case regardless of the fixture alert's length.
+- [x] **14. Generated fixtures** → three cases with no real fixture are generated at test time by `tests/support/pdfs.py`, as in spec 001: an MMS "Notice No. N" alert, a document whose structure is not recognized, and a document with an image-only page.
+- [x] **15. Panel coverage** → checked against the section headings present in the trimmed fixture, not against every entry of its Contents page.
