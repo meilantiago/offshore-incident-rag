@@ -3,8 +3,8 @@ id: "001"
 title: Corpus ingestion
 status: approved
 roadmap_refs: ["R1", "brief §3.1", "brief §6"]
-approved_hash: sha256:a4ad0a4c863d69f934d3e33c64131ad7da6a11af33a1ed2e79738483a3b16640
-approved_at: 2026-11-05
+approved_hash: sha256:8993f4459ac46aad723f071a651501984922e2d3d2a4bf0f22d44309eb15aa2d
+approved_at: 2026-11-07
 approved_by: Tiagod
 ---
 
