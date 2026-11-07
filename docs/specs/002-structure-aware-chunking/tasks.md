@@ -101,7 +101,7 @@ Confirmed findings from `/sdd-verify`, as loose T90+ tasks. Each may carry its o
   - Context: `plan.md#Structure detection` `spec.md#Definitions`
   - Found: `rechunk` on the local 690-document sample left 118 `structure_aware` chunks of 2 panel reports labelled like `Chronology of Events……………`, because `_CONTENTS_ENTRY` strips `.`, `_` and spaces before the page number but not `…`.
 
-- [ ] **T91** Red acceptance test for AC-002-13 (stale chunk sets in the structural report)
+- [x] **T91** Red acceptance test for AC-002-13 (stale chunk sets in the structural report)
   - AC: AC-002-13
   - Files: `tests/ingestion/test_structural_report.py`
   - Test first: the test itself, written by `test-writer` from AC-002-13 and `plan.md#Structural report`

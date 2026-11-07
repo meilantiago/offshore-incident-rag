@@ -1,4 +1,4 @@
-"""AC-002-10, AC-002-11, AC-002-12: `offshore-rag chunk-report`, the structural report of chunk sets.
+"""AC-002-10, AC-002-11, AC-002-12, AC-002-13: `offshore-rag chunk-report`, the structural report of chunk sets.
 
 The plan fixes the command and the location (`data/reports/`, JSON) but not the exact JSON layout, so the report is
 read leniently: the entry of a (strategy, document type) is the object that names both (as keys on its path or as
@@ -19,9 +19,10 @@ from urllib.parse import quote
 import pytest
 
 from tests.conftest import migrate_schema, with_search_path
-from tests.support.ingest import EXIT_FATAL, EXIT_OK, CliRun, IngestEnv, assert_exit, run_cli
+from tests.support.ingest import EXIT_FATAL, EXIT_OK, EXIT_PARTIAL, CliRun, IngestEnv, assert_exit, run_cli
 from tests.support.structure import (
     COMMITTED,
+    DISTRICT,
     DOC_TYPES,
     FIXED,
     SIZE_CAP,
@@ -108,10 +109,10 @@ def _ingest(env: IngestEnv, docs: list[Any]) -> dict[str, Any]:
     return served
 
 
-def _chunk_report(env: IngestEnv, *args: str) -> tuple[CliRun, dict[str, Any], Path]:
+def _chunk_report(env: IngestEnv, *args: str, exit_code: int = EXIT_OK) -> tuple[CliRun, dict[str, Any], Path]:
     before = report_files(env.reports_dir)
     run = run_cli("chunk-report", *args)
-    assert_exit(run, EXIT_OK)
+    assert_exit(run, exit_code)
     new = sorted(report_files(env.reports_dir) - before)
     assert len(new) == 1, f"one new report file under {env.reports_dir}, got {new}"
     path = env.reports_dir / new[0]
@@ -197,6 +198,77 @@ def test_ac_002_10_explicit_strategy_limits_the_report(db_env: IngestEnv) -> Non
 
     for doc_type in DOC_TYPES:
         assert _count(_entry(report, STRUCTURE, doc_type), r"^(chunks|n_chunks|chunk_count|chunks_count)$") > 0
+
+
+# -- AC-002-13 ----------------------------------------------------------------------------------------------------
+def test_ac_002_13_stale_chunk_set_is_listed_left_out_and_exits_3(db_env: IngestEnv) -> None:
+    """AC-002-13: a structure_aware chunk set that can no longer be located in the stored pages does not abort the
+    report: the file is written and the summary printed, that set is left out of the metrics, the report lists it
+    under `stale_chunk_sets` with source URL, doc type, strategy and the ordinal of the first chunk not located, the
+    summary points to `offshore-rag rechunk`, and the command exits 3."""
+    served = _ingest(db_env, [*COMMITTED, UNRECOGNIZED_DISTRICT])
+    stale_url = next(url for url, doc in served.items() if doc is DISTRICT)
+    other_url = next(url for url, doc in served.items() if doc is UNRECOGNIZED_DISTRICT)
+    stale_set = sorted((c for c in db_env.chunks(stale_url) if c["chunker"] == STRUCTURE), key=lambda c: c["ordinal"])
+    assert len(stale_set) >= 3, "the district fixture yields several structure_aware chunks"
+    # Alter a chunk in the middle of the set, as older rules would have produced text the current detection does not
+    # keep: the chunks before it are still located, so it is the first one that is not.
+    target = stale_set[len(stale_set) // 2]
+    marker = "stale" + uuid.uuid4().hex
+    db_env.db.conn.execute(
+        "UPDATE chunks SET text = %s WHERE document_id = %s AND chunker = %s AND ordinal = %s",
+        (
+            f"{marker} words that were never on any stored page {marker}",
+            target["document_id"],
+            STRUCTURE,
+            target["ordinal"],
+        ),
+    )
+    assert all(marker not in t for _, t, _ in db_env.pages(stale_url)), "the altered text is not in the stored pages"
+
+    run, report, _ = _chunk_report(db_env, exit_code=EXIT_PARTIAL)
+
+    # Listed under stale chunk sets, and only that set.
+    assert isinstance(report, dict), "the report is a JSON object with a top-level stale_chunk_sets list"
+    stale = report.get("stale_chunk_sets")
+    assert isinstance(stale, list), f"top-level stale_chunk_sets list missing: keys {sorted(report)}"
+    assert len(stale) == 1, f"exactly the altered (document, strategy) set is stale: {stale}"
+    item = stale[0]
+    assert item.get("source_url") == stale_url, item
+    assert item.get("strategy") == STRUCTURE, item
+    assert item.get("doc_type") == "district_report", item
+    assert item.get("ordinal") == target["ordinal"], f"first chunk not located is {target['ordinal']}: {item}"
+
+    # The stale set is left out of the metrics of its entry; the other district document still counts.
+    entry = _entry(report, STRUCTURE, "district_report")
+    kept = [c for c in db_env.chunks(other_url) if c["chunker"] == STRUCTURE]
+    assert kept, "the unrecognized district fixture still has structure_aware chunks"
+    assert _count(entry, r"^(documents|docs|n_documents|document_count|documents_count)$") == 1, "stale doc left out"
+    assert _count(entry, r"^(chunks|n_chunks|chunk_count|chunks_count)$") == len(kept), "stale chunks left out"
+    assert _count(entry, r"not_?recogni[sz]ed") == 1, "only the remaining (unrecognized) district document counts"
+    sizes = [len(words(c["text"])) for c in kept]
+    dist = _sizes(entry)
+    assert (dist["min"], dist["max"]) == (min(sizes), max(sizes)), "size distribution of the remaining set only"
+    multi = sum(c["page_end"] > c["page_start"] for c in kept) / len(kept)
+    _assert_share(_share(entry, r"multi.?page|span"), multi, "multi-page share of the remaining set only")
+    # Sets that are not stale are untouched: fixed_words still counts both district documents.
+    fixed = _entry(report, FIXED, "district_report")
+    assert _count(fixed, r"^(documents|docs|n_documents|document_count|documents_count)$") == 2
+    assert _count(fixed, r"^(chunks|n_chunks|chunk_count|chunks_count)$") == len(
+        _db_chunks(db_env, FIXED, "district_report")
+    )
+    for doc_type in ("safety_alert", "panel_report"):
+        assert _count(_entry(report, STRUCTURE, doc_type), r"^(chunks|n_chunks|chunk_count|chunks_count)$") == len(
+            _db_chunks(db_env, STRUCTURE, doc_type)
+        ), f"(structure_aware, {doc_type}) is not stale and keeps all its chunks"
+
+    # The summary is printed, lists the stale set and tells the operator to re-chunk.
+    out = run.stdout
+    for name in (*STRATEGIES, *DOC_TYPES):
+        assert name in out, f"the summary is still printed and names {name}:\n{out}"
+    assert re.search(r"(?i)stale", out), f"the summary lists stale chunk sets:\n{out}"
+    assert stale_url in out, f"the summary names the stale document:\n{out}"
+    assert "offshore-rag rechunk" in out, f"the summary tells the operator to run re-chunking:\n{out}"
 
 
 # -- AC-002-12 ----------------------------------------------------------------------------------------------------
