@@ -92,3 +92,11 @@ Integration tests need Postgres: `docker compose up -d db` and `TEST_DATABASE_UR
 
 ## Verification fixes
 Confirmed findings from `/sdd-verify`, as loose T90+ tasks. Each may carry its own `Context`.
+
+- [ ] **T90** Panel section labels drop Unicode ellipsis leaders from Contents entries
+  - AC: AC-002-05
+  - Files: `src/offshore_rag/ingestion/structure.py` (`_CONTENTS_ENTRY` and title clean-up), `tests/unit/test_structure_unit.py`
+  - Test first: `tests/unit/test_structure_unit.py` — a generated panel whose Contents entries use `…` leaders (`Chronology of Events………… 12`) and `. . .` leaders: the section labels are the bare titles (`Chronology of Events`) and the body headings match them
+  - Done when: `python -m pytest tests/unit/test_structure_unit.py tests/ingestion/test_panel_structure.py -q` green and `python scripts/check.py --fast` green
+  - Context: `plan.md#Structure detection` `spec.md#Definitions`
+  - Found: `rechunk` on the local 690-document sample left 118 `structure_aware` chunks of 2 panel reports labelled like `Chronology of Events……………`, because `_CONTENTS_ENTRY` strips `.`, `_` and spaces before the page number but not `…`.
