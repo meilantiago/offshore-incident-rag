@@ -3,7 +3,7 @@ id: "002"
 title: Structure-aware chunking
 status: approved
 roadmap_refs: ["R2", "brief §3.2", "brief §1"]
-approved_hash: sha256:3406c8c3aa378b820a7ba9fb3f322981362e2550c51d137c540bce939ac60381
+approved_hash: sha256:4b87365e8274b22d7dadbe5954b2dec0657c8d20451d0f4b682109dfc1f30d71
 approved_at: 2026-11-07
 approved_by: Tiagod
 ---
