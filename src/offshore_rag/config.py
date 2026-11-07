@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     http_max_retries: int = 4
     http_timeout_seconds: float = 30
     chunkers: Annotated[list[str], NoDecode] = ["fixed_words"]
+    chunkers_by_doc_type: dict[str, list[str]] = {}
     log_format: str = "console"
 
     @field_validator("chunkers", mode="before")

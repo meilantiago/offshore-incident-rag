@@ -5,13 +5,11 @@ from __future__ import annotations
 import re
 import socket
 import uuid
-from collections.abc import Iterator
 from urllib.parse import quote
 
-import psycopg
 import pytest
 
-from tests.conftest import PgSchema, with_search_path
+from tests.conftest import with_search_path
 from tests.support import pdfs
 from tests.support.ingest import EXIT_FATAL, IngestEnv, assert_exit
 
@@ -45,23 +43,6 @@ def test_ac_001_12_unreachable_database_is_fatal_before_download(http_env: Inges
     assert "corpus_offline" in run.output
     assert password not in run.output, "the password must never be printed"
     assert not (http_env.data_dir / "raw").exists() or not any((http_env.data_dir / "raw").iterdir())
-
-
-@pytest.fixture
-def limited_role(postgres: PgSchema) -> Iterator[tuple[str, str]]:
-    """A login role with a distinctive password, allowed to use the (unmigrated) test schema."""
-    role = f"r_{uuid.uuid4().hex[:10]}"
-    password = "Pw-" + uuid.uuid4().hex
-    admin = psycopg.connect(postgres.base_url, autocommit=True)
-    admin.execute(f"CREATE ROLE {role} LOGIN PASSWORD '{password}'")
-    admin.execute(f'GRANT USAGE ON SCHEMA "{postgres.schema}" TO {role}')
-    try:
-        yield role, password
-    finally:
-        admin.execute("SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE usename = %s", (role,))
-        admin.execute(f"DROP OWNED BY {role}")
-        admin.execute(f"DROP ROLE {role}")
-        admin.close()
 
 
 def test_ac_001_12_missing_schema_is_fatal_before_download(db_env: IngestEnv, limited_role: tuple[str, str]) -> None:

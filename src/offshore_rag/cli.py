@@ -1,9 +1,13 @@
-"""Command line: `offshore-rag db migrate | build-manifest | ingest`.
+"""Command line: `offshore-rag db migrate | build-manifest | ingest | rechunk | chunk-report`.
 
 Exit codes: 0 ok, 3 finished with failed documents, 1 fatal.
 """
 
 from __future__ import annotations
+
+from collections.abc import Iterator
+from contextlib import contextmanager
+from typing import Annotated, Any
 
 import psycopg
 import typer
@@ -12,12 +16,19 @@ from offshore_rag.config import Settings, get_settings
 from offshore_rag.db.connection import DatabaseUnavailable, connect
 from offshore_rag.db.migrate import migrate, pending_migrations
 from offshore_rag.ingestion.build import ManifestBuildError, build_manifest
-from offshore_rag.ingestion.chunking import UnknownChunkerError, chunkers_from_config
+from offshore_rag.ingestion.chunking import ChunkerConfigError, ChunkerPlan
 from offshore_rag.ingestion.http import FetchError, PoliteClient
 from offshore_rag.ingestion.manifest import ManifestError, load_manifest, write_manifest
 from offshore_rag.ingestion.pipeline import run_ingest
+from offshore_rag.ingestion.rechunk import run_rechunk
 from offshore_rag.ingestion.report import format_summary, write_report
 from offshore_rag.ingestion.store import CorpusStore
+from offshore_rag.ingestion.structural_report import (
+    NoChunksError,
+    build_structural_report,
+    format_structural_summary,
+    write_structural_report,
+)
 from offshore_rag.logging import configure_logging
 
 EXIT_OK = 0
@@ -83,22 +94,9 @@ def _client(settings: Settings) -> PoliteClient:
     )
 
 
-@app.command("ingest")
-def ingest_command() -> None:
-    """Download, parse, chunk and store every manifest entry, then write the ingestion report."""
-    settings = get_settings()
-    configure_logging(settings.log_format)
-    # 1. The whole manifest and the configuration are validated before any network or database access.
-    try:
-        entries = load_manifest(settings.manifest_path)
-    except ManifestError as e:
-        details = "\n".join(f"  - {p}" for p in e.problems)
-        raise fatal(f"invalid manifest {settings.manifest_path}; nothing was downloaded or stored:\n{details}") from e
-    try:
-        chunkers = chunkers_from_config(settings.chunkers)
-    except UnknownChunkerError as e:
-        raise fatal(f"invalid CHUNKERS setting: {e}") from e
-    # 2. The database must be reachable and fully migrated. `ingest` never migrates by itself.
+@contextmanager
+def _migrated_database(settings: Settings) -> Iterator[psycopg.Connection[Any]]:
+    """Open the database for a command that never migrates: fatal if unreachable or not fully migrated."""
     try:
         conn = connect(settings)
     except DatabaseUnavailable as e:
@@ -114,10 +112,31 @@ def ingest_command() -> None:
                 f"the database schema is missing or not migrated ({target}): pending migrations "
                 f"{', '.join(pending)}. Run `offshore-rag db migrate` first."
             )
+        yield conn
+
+
+@app.command("ingest")
+def ingest_command() -> None:
+    """Download, parse, chunk and store every manifest entry, then write the ingestion report."""
+    settings = get_settings()
+    configure_logging(settings.log_format)
+    # 1. The whole manifest and the configuration are validated before any network or database access.
+    try:
+        entries = load_manifest(settings.manifest_path)
+    except ManifestError as e:
+        details = "\n".join(f"  - {p}" for p in e.problems)
+        raise fatal(f"invalid manifest {settings.manifest_path}; nothing was downloaded or stored:\n{details}") from e
+    try:
+        plan = ChunkerPlan.from_settings(settings)
+    except ChunkerConfigError as e:
+        raise fatal(str(e)) from e
+    # 2. The database must be reachable and fully migrated. `ingest` never migrates by itself.
+    with _migrated_database(settings) as conn:
+        target = settings.describe_database()
         # 3. Documents, one at a time. Per-document failures are in the report; anything else is fatal.
         with _client(settings) as client:
             try:
-                report = run_ingest(entries, client, CorpusStore(conn), chunkers, settings.data_dir)
+                report = run_ingest(entries, client, CorpusStore(conn), plan, settings.data_dir)
             except psycopg.Error as e:
                 raise fatal(f"database error during ingest ({target}): {' '.join(str(e).split())}") from e
             except OSError as e:
@@ -126,3 +145,48 @@ def ingest_command() -> None:
     typer.echo(format_summary(report))
     typer.echo(f"Report: {path}")
     raise typer.Exit(EXIT_PARTIAL if report.has_failures else EXIT_OK)
+
+
+@app.command("rechunk")
+def rechunk_command() -> None:
+    """Build the configured chunk sets for every stored document from its stored pages, without downloading."""
+    settings = get_settings()
+    configure_logging(settings.log_format)
+    try:
+        plan = ChunkerPlan.from_settings(settings)
+    except ChunkerConfigError as e:
+        raise fatal(str(e)) from e
+    with _migrated_database(settings) as conn:
+        try:
+            summary = run_rechunk(CorpusStore(conn), plan)
+        except psycopg.Error as e:
+            raise fatal(
+                f"database error during rechunk ({settings.describe_database()}): {' '.join(str(e).split())}"
+            ) from e
+    typer.echo(summary.format())
+    raise typer.Exit(EXIT_PARTIAL if summary.has_failures else EXIT_OK)
+
+
+@app.command("chunk-report")
+def chunk_report_command(
+    strategy: Annotated[
+        list[str] | None,
+        typer.Option("--strategy", help="Strategy to report (repeatable). Default: every strategy in the database."),
+    ] = None,
+) -> None:
+    """Write the structural report of the stored chunk sets under DATA_DIR/reports/ and print its summary."""
+    settings = get_settings()
+    configure_logging(settings.log_format)
+    with _migrated_database(settings) as conn:
+        try:
+            report = build_structural_report(CorpusStore(conn), strategy or None)
+        except NoChunksError as e:
+            raise fatal(f"{e}; no report was written") from e
+        except psycopg.Error as e:
+            raise fatal(
+                f"database error during chunk-report ({settings.describe_database()}): {' '.join(str(e).split())}"
+            ) from e
+    path = write_structural_report(report, settings.data_dir)
+    typer.echo(format_structural_summary(report))
+    typer.echo(f"Report: {path}")
+    raise typer.Exit(EXIT_PARTIAL if report.stale_chunk_sets else EXIT_OK)

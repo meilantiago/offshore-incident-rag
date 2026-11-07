@@ -43,7 +43,7 @@ def _save(store: CorpusStore, data: bytes, sha: str, chunker: FixedWordChunker |
         sha,
         f"raw/{sha}.pdf",
         parsed,
-        [(chunker, chunker.chunk(parsed.pages))],
+        [(chunker, chunker.chunk(parsed.pages, "safety_alert"))],
         retrieved_at=datetime.now(UTC),
     )
 
@@ -82,7 +82,7 @@ def test_failure_mid_transaction_leaves_previous_version_identical(store: Corpus
     before = _dump(postgres)
     parsed = parse_pdf(pdfs.text_pdf(2, tag="VERSION-B"))
     chunker = FixedWordChunker(size=50, overlap=10)
-    broken = [*chunker.chunk(parsed.pages), ChunkDraft(999, 1, 1, "")]  # empty text violates a CHECK
+    broken = [*chunker.chunk(parsed.pages, "safety_alert"), ChunkDraft(999, 1, 1, "")]  # empty text violates a CHECK
 
     with pytest.raises(psycopg.IntegrityError):
         store.save_document(

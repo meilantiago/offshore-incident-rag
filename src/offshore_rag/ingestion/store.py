@@ -7,7 +7,7 @@ The connection is in autocommit mode; every write runs in its own explicit trans
 from __future__ import annotations
 
 import json
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Literal
@@ -17,7 +17,7 @@ import psycopg
 from offshore_rag.ingestion.chunking import ChunkDraft, Chunker
 from offshore_rag.ingestion.http import FetchResult
 from offshore_rag.ingestion.manifest import ManifestEntry
-from offshore_rag.ingestion.pdf import ParsedPdf
+from offshore_rag.ingestion.pdf import PageText, ParsedPdf
 
 ChunkSets = Sequence[tuple[Chunker, Sequence[ChunkDraft]]]
 
@@ -30,6 +30,29 @@ class StoredDocument:
     etag: str | None
     last_modified: str | None
     raw_path: str
+
+
+@dataclass(frozen=True)
+class StoredDocumentRef:
+    id: int
+    source_url: str
+    doc_type: str
+
+
+@dataclass(frozen=True)
+class ReportChunk:
+    """A stored chunk with what the structural report needs of its document (plan.md#Structural report)."""
+
+    document_id: int
+    source_url: str
+    doc_type: str
+    chunker: str
+    chunker_params: Mapping[str, Any]
+    ordinal: int
+    page_start: int
+    page_end: int
+    text: str
+    section: str | None
 
 
 @dataclass(frozen=True)
@@ -107,7 +130,7 @@ class CorpusStore:
                     copy.write_row((document_id, page.number, page.text, page.image_only, len(page.text)))
             with cur.copy(
                 "COPY chunks (document_id, chunker, chunker_params, ordinal, page_start, page_end, text, "
-                "char_count, word_count) FROM STDIN"
+                "char_count, word_count, section) FROM STDIN"
             ) as copy:
                 for chunker, drafts in chunks_by_chunker:
                     params = json.dumps(dict(chunker.params), sort_keys=True)
@@ -123,9 +146,78 @@ class CorpusStore:
                                 d.text,
                                 len(d.text),
                                 len(d.text.split()),
+                                d.section,
                             )
                         )
         return outcome
+
+    def iter_stored_documents(self, doc_types: Sequence[str]) -> list[StoredDocumentRef]:
+        """Stored documents of the given types, in id order."""
+        rows = self._conn.execute(
+            "SELECT id, source_url, doc_type FROM documents WHERE doc_type = ANY(%s) ORDER BY id", (list(doc_types),)
+        ).fetchall()
+        return [StoredDocumentRef(int(r[0]), r[1], r[2]) for r in rows]
+
+    def load_pages(self, document_id: int) -> list[PageText]:
+        rows = self._conn.execute(
+            "SELECT page_number, text, image_only FROM pages WHERE document_id = %s ORDER BY page_number",
+            (document_id,),
+        ).fetchall()
+        return [PageText(int(r[0]), r[1], bool(r[2])) for r in rows]
+
+    def replace_chunk_set(
+        self, document_id: int, chunker: Chunker, drafts: Sequence[ChunkDraft]
+    ) -> Literal["created", "unchanged"]:
+        """Store `drafts` as the document's chunk set of `chunker`, in one transaction.
+
+        A stored set with the same strategy and identical parameters is left untouched (ids and text kept).
+        Sets of that strategy with other parameters are deleted before the new one is inserted.
+        """
+        params = json.dumps(dict(chunker.params), sort_keys=True)
+        with self._conn.transaction(), self._conn.cursor() as cur:
+            same = cur.execute(
+                "SELECT 1 FROM chunks WHERE document_id = %s AND chunker = %s AND chunker_params = %s::jsonb LIMIT 1",
+                (document_id, chunker.id, params),
+            ).fetchone()
+            if same is not None:
+                return "unchanged"
+            cur.execute("DELETE FROM chunks WHERE document_id = %s AND chunker = %s", (document_id, chunker.id))
+            with cur.copy(
+                "COPY chunks (document_id, chunker, chunker_params, ordinal, page_start, page_end, text, "
+                "char_count, word_count, section) FROM STDIN"
+            ) as copy:
+                for d in drafts:
+                    copy.write_row(
+                        (
+                            document_id,
+                            chunker.id,
+                            params,
+                            d.ordinal,
+                            d.page_start,
+                            d.page_end,
+                            d.text,
+                            len(d.text),
+                            len(d.text.split()),
+                            d.section,
+                        )
+                    )
+        return "created"
+
+    def chunks_for_report(self, strategies: Sequence[str] | None) -> list[ReportChunk]:
+        """The chunks of the given strategies (all stored strategies when `None`), by document, strategy, ordinal."""
+        query = (
+            "SELECT c.document_id, d.source_url, d.doc_type, c.chunker, c.chunker_params, c.ordinal, c.page_start, "
+            "c.page_end, c.text, c.section FROM chunks c JOIN documents d ON d.id = c.document_id"
+        )
+        params: tuple[Any, ...] = ()
+        if strategies is not None:
+            query += " WHERE c.chunker = ANY(%s)"
+            params = (list(strategies),)
+        rows = self._conn.execute(query + " ORDER BY c.document_id, c.chunker, c.ordinal", params).fetchall()
+        return [
+            ReportChunk(int(r[0]), r[1], r[2], r[3], dict(r[4]), int(r[5]), int(r[6]), int(r[7]), r[8], r[9])
+            for r in rows
+        ]
 
     def counts(self) -> CorpusCounts:
         row = self._conn.execute(

@@ -6,3 +6,4 @@ States: see [docs/workflow.md](../workflow.md#spec-states).
 | Spec | Title | State | AC with test | Tasks |
 |---|---|---|---|---|
 | [001](001-corpus-ingestion/spec.md) | Corpus ingestion | done | 12/12 | 19/19 |
+| [002](002-structure-aware-chunking/spec.md) | Structure-aware chunking | done | 13/13 | 14/14 |
