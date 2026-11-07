@@ -3,4 +3,6 @@
 
 States: see [docs/workflow.md](../workflow.md#spec-states).
 
-_No specs yet._
+| Spec | Title | State | AC with test | Tasks |
+|---|---|---|---|---|
+| [001](001-corpus-ingestion/spec.md) | Corpus ingestion | done | 12/12 | 19/19 |
