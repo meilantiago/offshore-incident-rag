@@ -24,7 +24,7 @@ The brief says BSEE lessons are "spread across hundreds of PDFs with uneven stru
   - 564 of the 946 district chunks that start on page 1 contain FIRE, EXPLOSION, FATALITY and COLLISION all at once. That is systematic noise for lexical and semantic retrieval alike.
   - A page header repeats on every page: `PAGE: N OF`, a date, `MMS - FORM 2010`, `EV2010R`, the page count and `For Public Release`. It makes up 4.9% of district words and sits inside 61% of district chunks.
   - The narrative lives in numbered fields present in 94–100% of reports: 17 INVESTIGATION FINDINGS, 18 LIST THE PROBABLE CAUSE(S) OF ACCIDENT, 19 LIST THE CONTRIBUTING CAUSE(S) OF ACCIDENT, 20 LIST THE ADDITIONAL INFORMATION, 21 PROPERTY DAMAGED, 22 RECOMMENDATIONS TO PREVENT RECURRANCE NARRATIVE, 23 POSSIBLE OCS VIOLATIONS RELATED TO ACCIDENT, 24 SPECIFY VIOLATIONS DIRECTLY OR INDIRECTLY CONTRIBUTING (and 25 DATE OF ONSITE INVESTIGATION). Fixed windows ignore those field boundaries.
-- **Panel reports** have a Contents page listing their sections with page numbers, Title Case in-text headings, and the page number as the first line of each page. Contents, acronym and figure-list pages are 2.6% of panel words, and 69% of panel chunks span more than one page.
+- **Panel reports** have a Contents page listing their sections with page numbers, Title Case in-text headings, and the page number as the first line of each page (22 of 36 in the sample) or, in older MMS OCS Reports, as the last line (13 of 36). Contents, acronym and figure-list pages are 2.6% of panel words, and 69% of panel chunks span more than one page.
 - **Safety Alerts** are short.
   - Recent ones follow "Safety Alert No. / Date / Contact / Phone / title / Background: / … / recommendations", and "recommend" appears in 64% of them.
   - Old MMS-era notices ("Notice No. N", from 1993) are prose with numbered lists, and photo captions are mixed into the text.
@@ -52,9 +52,9 @@ Terms used in the acceptance criteria:
 - **Splitting rule**: when a field or section is over the size cap, it is cut into consecutive pieces. Each cut is at the last paragraph break within the cap; if there is none, at the last sentence break within the cap; if there is none, at the cap word.
 - **Removed content**: the text that `structure_aware` leaves out on purpose. It is:
   - district page 1 (the checkbox grid and the loose page-1 fields) and the repeated district page-header lines;
-  - the panel Contents and figure-list pages and the page-number line at the top of each panel page;
+  - the panel Contents and figure-list pages and the page-number line of each panel page: its first or last line when that line holds only a page number (arabic or roman);
   - the Contact and Phone lines of a Safety Alert's header block.
-- **Section label**: the field or section a chunk belongs to, stored in its own column and never added to the chunk text.
+- **Section label**: the field or section a chunk belongs to, stored in its own column and never added to the chunk text. Special values: `acronyms` (a panel list of acronyms), `preamble` (text before the first field or section, such as a panel title page or the opening of an alert before its first heading line), `alert` (a Safety Alert with no heading lines) and `structure_not_recognized` (AC-002-07).
 
 ## Acceptance criteria
 - **AC-002-01** — Given configuration that runs `fixed_words` for all three document types and `structure_aware` for all three, when the operator runs `ingest` on a manifest with one committed fixture of each document type, then each document has exactly one `fixed_words` chunk set and one `structure_aware` chunk set. Every chunk records its strategy id and parameters, and every `structure_aware` chunk records a non-empty section label. The `fixed_words` chunks are identical (text, page range, ordinal, parameters) to the ones produced when `fixed_words` is the only configured strategy. With `structure_aware` configured for only one type, documents of the other types get no `structure_aware` chunks.
@@ -66,7 +66,7 @@ Terms used in the acceptance criteria:
   - no chunk holds text from two sections, and long sections are split by the splitting rule within the size cap;
   - the list of acronyms is in its own chunk or chunks, labelled `acronyms`;
   - the Contents page and the figure list are in no chunk (the fixture includes a figure-list page);
-  - no chunk contains the page-number line at the top of a page.
+  - no chunk contains a page-number line (the first or last line of a page holding only a page number).
 - **AC-002-06** — Given the committed Safety Alert fixture, when it is chunked with `structure_aware`, then:
   - with a size cap at least the alert's length, it is exactly one chunk holding the whole alert text, from its first to its last text page;
   - with a smaller cap, chunk boundaries fall only at heading lines ending in `:` (for example `Background:`, `Recommendations:`), plus splitting-rule cuts inside a section over the cap;
@@ -162,3 +162,6 @@ Stored page text is unchanged: removed content is dropped in the chunker, not in
 - [x] **13. Size cap in tests** → the cap is a recorded parameter (250 by default); a test may set it, so AC-002-06 can check the "fits" case regardless of the fixture alert's length.
 - [x] **14. Generated fixtures** → three cases with no real fixture are generated at test time by `tests/support/pdfs.py`, as in spec 001: an MMS "Notice No. N" alert, a document whose structure is not recognized, and a document with an image-only page.
 - [x] **15. Panel coverage** → checked against the section headings present in the trimmed fixture, not against every entry of its Contents page.
+- [x] **16. Panel page-number line position** (plan P1) → removed when it is the first or last line of a panel page and holds only a page number, arabic or roman (*Removed content*, AC-002-05).
+- [x] **17. Text before the first section** (plan P2) → labelled `preamble`, so AC-002-08 skips nothing. `alert` labels a Safety Alert with no heading lines (*Section label*, glossary).
+- [x] **18. Alert size** (plan P3) → the size cap stays 250 words for alerts. In the sample about a third of alerts fit whole; the rest split at heading lines or paragraph breaks. The structural report shows the real share.

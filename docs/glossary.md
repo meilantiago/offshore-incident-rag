@@ -14,9 +14,9 @@ Use these names in code, specs and tests.
 | **Ingestion report** | The machine-readable summary of an ingestion run: counts, failures by stage and reason, durations. |
 | **Chunk** | A piece of text from one document, with its page range, its chunking strategy and (for `structure_aware`) its section label, that is indexed and retrieved. A `fixed_words` chunk is a contiguous slice of its pages' text. A `structure_aware` chunk keeps the words of its pages in order and contiguous, except for removed content. |
 | **Chunking strategy** | An implementation of the `Chunker` interface with its parameters, recorded on every chunk. `fixed_words` is the control; `structure_aware` follows the structure of each document type. |
-| **Page furniture** | Text repeated on the pages of a document that is not content: the Form 2010 page header, the page-number line of panel reports. |
+| **Page furniture** | Text repeated on the pages of a document that is not content: the Form 2010 page header, the page-number line (first or last line of a page) of panel reports. |
 | **Narrative field** | A numbered free-text field of MMS Form 2010 (17 to 24), the unit of `structure_aware` chunks for district reports. |
-| **Section label** | The field or section a chunk belongs to, stored beside the chunk text and never inside it. Special values: `acronyms`, `structure_not_recognized`. |
+| **Section label** | The field or section a chunk belongs to, stored beside the chunk text and never inside it. Special values: `acronyms`, `preamble` (text before the first field or section), `alert` (a Safety Alert with no heading lines), `structure_not_recognized`. |
 | **Structural report** | The report of chunk quality per strategy and document type (size, page span, page-furniture and checkbox-grid noise, boundary crossings, coverage), computed without a golden set. |
 | **Retrieval** | Finding the chunks most relevant to a question. **Hybrid** retrieval combines lexical (full-text) and semantic (embedding) search. |
 | **Reranking** | Re-ordering retrieved chunks with a more expensive model (a cross-encoder). |

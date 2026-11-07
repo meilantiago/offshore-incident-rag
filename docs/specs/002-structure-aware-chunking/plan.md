@@ -22,10 +22,10 @@ chunk-report : stored pages + chunks → structure detection → metrics per (st
   - Text on pages ≥ 2 before field 17 (rare) goes to a `preamble` segment.
 - **Panel reports.** Recognized when a Contents page is found and at least one of its entries matches a heading line in the body.
   - The Contents page(s) and the figure/table-list page(s) (a page whose first line is `List of Figures`, `Figures`, `List of Tables`…) are removed content (AC-002-05).
-  - The page-number line is removed (see *Open points for the spec*, P1).
+  - The page-number line is removed: the first or last line of a page when it holds only a page number, arabic or roman (spec open question 16).
   - The section headings are the Contents entries with their page number stripped, matched as whole lines in the body (case-insensitive, whitespace-normalized). Each heading starts a segment labelled with that title (AC-002-05).
   - The `Abbreviations and Acronyms` / `Acronyms` section is labelled `acronyms` (AC-002-05).
-  - Text before the first heading (title page, cover) goes to a `preamble` segment (P2).
+  - Text before the first heading (title page, cover) goes to a `preamble` segment (spec open question 17).
 - **Safety Alerts.**
   - The `Contact:` and `Phone:` lines of the header block (first page, before the title) are removed content (AC-002-06).
   - A line that ends in `:` and has at most 8 words starts a segment labelled with that line without the colon (`Background`, `Recommendations`…). Text before the first such line (alert number, date, title, opening paragraphs) is a `preamble` segment. An alert with no such line is one segment labelled `alert` (AC-002-06).
@@ -113,7 +113,7 @@ class Chunker(Protocol):
 ### Test fixtures
 Three trimmed real PDFs under `tests/fixtures/bsee/`, recorded in `SOURCES.md` (URL, date, sha256, trimming). Trimming keeps whole pages (page import with pypdfium2, a helper in `tests/support/trim_pdf.py`) and is done once by hand. Candidates found in the local sample, to be confirmed when the fixtures are cut:
 - **District:** a 3-page Form 2010 with fields 17–24 filled and no images (sample sha256 prefix `003089839387`, MP 42 L, 2020).
-- **Panel:** an OCS Report with a Contents page, an acronym list and a figure list on pages without photographs, trimmed to Contents + acronyms + figure list + the Executive Summary and Introduction sections. The trimmed body must keep the page numbering style chosen in P1.
+- **Panel:** an OCS Report with a Contents page, an acronym list and a figure list on pages without photographs, trimmed to Contents + acronyms + figure list + the Executive Summary and Introduction sections. Its body pages keep their page-number line (first or last), so AC-002-05 checks its removal.
 - **Safety Alert:** a recent alert with `Contact:`/`Phone:` lines and at least two heading lines ending in `:`, with no third-party photographs. Only 7 of 71 alerts in the sample have such lines; one is picked from those. Alert 469, already committed, has Contact/Phone but no heading lines.
 
 `tests/support/pdfs.py` gains generators for: an MMS "Notice No. N" alert with numbered paragraphs, a district report without fields 17–24, a panel report without headings, and a document with an image-only page between two text pages.
@@ -147,10 +147,10 @@ None on retrieval or answer metrics: nothing is embedded, retrieved or answered,
 - **Changing the `Chunker` signature** touches spec 001 code and tests; the AC-001 tests stay green as the regression check.
 
 ## Open points for the spec
-Found while planning against the local sample; they need a decision before approval because they change spec text.
-- **P1. Panel page-number line position.** The spec says the page number is the first line of each panel page. In the sample, 22 of 36 panel reports have it first and 13 have it as the last line (older MMS OCS Reports); 1 has neither. Proposal: the removed line is the first or last line of a panel page when it is only a page number (arabic or roman), and the spec's *Removed content* and AC-002-05 say "first or last line".
-- **P2. Text before the first section.** A panel title page, and the opening of an alert before its first heading, belong to no named section, yet AC-002-08 forbids skipping them. Proposal: label them `preamble`, a third special value of *Section label* (spec *Definitions* and glossary).
-- **P3. Alert size.** With a 250-word cap and a median alert of 373 words, about two thirds of alerts are split; most have no heading lines (56 of 71), so they split at paragraph breaks. The story "a short alert kept whole" holds for about a third. Not a blocker; noted in case the cap for alerts should differ (spec open question 3 would change).
+Found while planning against the local sample and resolved in the spec (open questions 16–18):
+- **P1. Panel page-number line position.** 22 of 36 sample panel reports have it as the first line, 13 as the last. The removed line is the first or last line of a page holding only a page number, arabic or roman.
+- **P2. Text before the first section.** Labelled `preamble`; an alert without heading lines is one segment labelled `alert`.
+- **P3. Alert size.** The cap stays 250 words; about a third of alerts fit whole. The structural report shows the real share.
 
 ## ADRs
 - **ADR-0003 (proposed): structure detection from extracted line text with per-type rules**, instead of PDF layout coordinates, a document-layout library or an LLM.
