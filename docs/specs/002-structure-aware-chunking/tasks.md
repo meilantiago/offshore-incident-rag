@@ -32,19 +32,19 @@ Integration tests need Postgres: `docker compose up -d db` and `TEST_DATABASE_UR
 - Model: opus
 - Context: `spec.md#Definitions` `plan.md#Structure detection` `plan.md#Chunking` `plan.md#Chunker interface` `plan.md#Test fixtures`
 
-- [ ] **T04** `detect_structure` for district reports (Form 2010)
+- [x] **T04** `detect_structure` for district reports (Form 2010)
   - AC: AC-002-03, AC-002-04
   - Files: `src/offshore_rag/ingestion/structure.py`, `tests/unit/test_structure_unit.py`
   - Test first: `tests/unit/test_structure_unit.py` — on the district fixture's stored pages: page 1 and every header line flagged removed, one segment per filled field 17–24 labelled `"<number> <TITLE>"`, text before field 17 on page ≥ 2 is `preamble`; a district without fields 17–24 returns `None`
   - Done when: `python -m pytest tests/unit/test_structure_unit.py -q -k district` green and `python scripts/check.py --fast` green
 
-- [ ] **T05** `detect_structure` for panel reports and Safety Alerts
+- [x] **T05** `detect_structure` for panel reports and Safety Alerts
   - AC: AC-002-05, AC-002-06
   - Files: `src/offshore_rag/ingestion/structure.py`, `tests/unit/test_structure_unit.py`
   - Test first: `tests/unit/test_structure_unit.py` — panel fixture: Contents and figure-list pages removed, first-or-last page-number line removed, headings from Contents entries, `acronyms` and `preamble` segments; a panel without headings returns `None`; alert fixture: Contact/Phone removed, segments at heading lines ending in `:`, `preamble` before the first; an alert with no heading line is one `alert` segment
   - Done when: `python -m pytest tests/unit/test_structure_unit.py -q` green and `python scripts/check.py --fast` green
 
-- [ ] **T06** `StructureAwareChunker`: splitting rule, image-only cuts and fallback
+- [x] **T06** `StructureAwareChunker`: splitting rule, image-only cuts and fallback
   - AC: AC-002-03, AC-002-04, AC-002-05, AC-002-06, AC-002-07, AC-002-08
   - Files: `src/offshore_rag/ingestion/structure_aware.py`, `src/offshore_rag/ingestion/chunking.py` (registry), `tests/unit/test_structure_aware_unit.py`
   - Test first: `tests/unit/test_structure_aware_unit.py` — paragraph, sentence and hard-word cuts within the cap, no overlap; a segment cut at an image-only page; unrecognized structure → windows of ≤ `size_cap` labelled `structure_not_recognized` covering every word; `params` = `{"size_cap": 250, "version": 1}`

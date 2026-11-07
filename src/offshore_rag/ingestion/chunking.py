@@ -106,8 +106,16 @@ def _text_runs(pages: Sequence[PageText]) -> list[list[tuple[str, int]]]:
     return runs
 
 
+def _structure_aware() -> Chunker:
+    # Imported here: `structure_aware` builds on this module (ChunkDraft, FixedWordChunker for its fallback).
+    from offshore_rag.ingestion.structure_aware import StructureAwareChunker
+
+    return StructureAwareChunker(size_cap=250)
+
+
 _REGISTRY: dict[str, Callable[[], Chunker]] = {
     "fixed_words": lambda: FixedWordChunker(size=250, overlap=40),
+    "structure_aware": _structure_aware,
 }
 
 
