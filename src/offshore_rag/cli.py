@@ -12,7 +12,7 @@ from offshore_rag.config import Settings, get_settings
 from offshore_rag.db.connection import DatabaseUnavailable, connect
 from offshore_rag.db.migrate import migrate, pending_migrations
 from offshore_rag.ingestion.build import ManifestBuildError, build_manifest
-from offshore_rag.ingestion.chunking import UnknownChunkerError, chunkers_from_config
+from offshore_rag.ingestion.chunking import ChunkerConfigError, ChunkerPlan
 from offshore_rag.ingestion.http import FetchError, PoliteClient
 from offshore_rag.ingestion.manifest import ManifestError, load_manifest, write_manifest
 from offshore_rag.ingestion.pipeline import run_ingest
@@ -95,9 +95,9 @@ def ingest_command() -> None:
         details = "\n".join(f"  - {p}" for p in e.problems)
         raise fatal(f"invalid manifest {settings.manifest_path}; nothing was downloaded or stored:\n{details}") from e
     try:
-        chunkers = chunkers_from_config(settings.chunkers)
-    except UnknownChunkerError as e:
-        raise fatal(f"invalid CHUNKERS setting: {e}") from e
+        plan = ChunkerPlan.from_settings(settings)
+    except ChunkerConfigError as e:
+        raise fatal(str(e)) from e
     # 2. The database must be reachable and fully migrated. `ingest` never migrates by itself.
     try:
         conn = connect(settings)
@@ -117,7 +117,7 @@ def ingest_command() -> None:
         # 3. Documents, one at a time. Per-document failures are in the report; anything else is fatal.
         with _client(settings) as client:
             try:
-                report = run_ingest(entries, client, CorpusStore(conn), chunkers, settings.data_dir)
+                report = run_ingest(entries, client, CorpusStore(conn), plan, settings.data_dir)
             except psycopg.Error as e:
                 raise fatal(f"database error during ingest ({target}): {' '.join(str(e).split())}") from e
             except OSError as e:

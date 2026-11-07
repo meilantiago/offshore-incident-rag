@@ -19,6 +19,7 @@ def test_db_migrate_applies_migrations(postgres: PgSchema, monkeypatch: pytest.M
     result = runner.invoke(app, ["db", "migrate"])
     assert result.exit_code == 0, result.output
     assert "0001_corpus" in result.output
+    assert "0002_chunk_section" in result.output
     assert postgres.table_exists("documents")
     again = runner.invoke(app, ["db", "migrate"])
     assert again.exit_code == 0, again.output

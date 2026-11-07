@@ -18,11 +18,12 @@ import time
 from collections.abc import Callable, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import cast
 
 import psycopg
 import structlog
 
-from offshore_rag.ingestion.chunking import ChunkDraft, Chunker
+from offshore_rag.ingestion.chunking import ChunkDraft, Chunker, ChunkerPlan, DocType
 from offshore_rag.ingestion.http import FetchError, PoliteClient
 from offshore_rag.ingestion.manifest import ManifestEntry
 from offshore_rag.ingestion.pdf import PdfParseError, parse_pdf
@@ -45,7 +46,7 @@ def run_ingest(
     entries: Sequence[ManifestEntry],
     client: PoliteClient,
     store: CorpusStore,
-    chunkers: Sequence[Chunker],
+    plan: ChunkerPlan,
     data_dir: Path,
     clock: Callable[[], float] = time.perf_counter,
 ) -> IngestionReport:
@@ -56,7 +57,7 @@ def run_ingest(
     for entry in entries:
         durations: dict[str, float] = dict.fromkeys(STAGES, 0.0)
         try:
-            outcome = _process(entry, client, store, chunkers, data_dir, clock, durations)
+            outcome = _process(entry, client, store, plan, data_dir, clock, durations)
         except _DocumentFailure as failure:
             outcome = DocumentOutcome(entry.source_url, "failed", stage=failure.stage, reason=failure.reason)
             log.warning("document_failed", url=entry.source_url, stage=failure.stage, reason=failure.reason)
@@ -80,7 +81,7 @@ def _process(
     entry: ManifestEntry,
     client: PoliteClient,
     store: CorpusStore,
-    chunkers: Sequence[Chunker],
+    plan: ChunkerPlan,
     data_dir: Path,
     clock: Callable[[], float],
     durations: dict[str, float],
@@ -125,7 +126,9 @@ def _process(
     # -- chunk ----------------------------------------------------------------------------------------------
     t = clock()
     try:
-        chunk_sets: list[tuple[Chunker, list[ChunkDraft]]] = [(c, c.chunk(parsed.pages)) for c in chunkers]
+        chunk_sets: list[tuple[Chunker, list[ChunkDraft]]] = [
+            (c, c.chunk(parsed.pages, cast(DocType, entry.doc_type))) for c in plan.for_doc_type(entry.doc_type)
+        ]
     except ValueError as e:
         raise _DocumentFailure("chunk", f"{type(e).__name__}: {e}") from e
     finally:

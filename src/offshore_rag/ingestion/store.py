@@ -107,7 +107,7 @@ class CorpusStore:
                     copy.write_row((document_id, page.number, page.text, page.image_only, len(page.text)))
             with cur.copy(
                 "COPY chunks (document_id, chunker, chunker_params, ordinal, page_start, page_end, text, "
-                "char_count, word_count) FROM STDIN"
+                "char_count, word_count, section) FROM STDIN"
             ) as copy:
                 for chunker, drafts in chunks_by_chunker:
                     params = json.dumps(dict(chunker.params), sort_keys=True)
@@ -123,6 +123,7 @@ class CorpusStore:
                                 d.text,
                                 len(d.text),
                                 len(d.text.split()),
+                                d.section,
                             )
                         )
         return outcome

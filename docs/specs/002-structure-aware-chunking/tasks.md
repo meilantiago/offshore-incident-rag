@@ -15,13 +15,13 @@ Integration tests need Postgres: `docker compose up -d db` and `TEST_DATABASE_UR
 - Model: sonnet
 - Context: `plan.md#Strategy selection` `plan.md#Migration 0002` `plan.md#Package layout` `plan.md#Chunker interface` `plan.md#CLI and exit codes`
 
-- [ ] **T02** Migration 0002 and `section` on chunks
+- [x] **T02** Migration 0002 and `section` on chunks
   - AC: AC-002-01
   - Files: `src/offshore_rag/db/migrations/0002_chunk_section.sql`, `src/offshore_rag/ingestion/chunking.py` (`ChunkDraft.section`), `src/offshore_rag/ingestion/store.py` (`section` in the chunk COPY), `tests/unit/test_migrate.py`
   - Test first: `tests/unit/test_migrate.py` — 0002 applies on a clean schema and on one migrated to 0001; an empty `section` is rejected; `fixed_words` rows store `section` NULL
   - Done when: `python -m pytest tests/unit/test_migrate.py tests/ingestion/test_chunking.py -q` green and `python scripts/check.py --fast` green
 
-- [ ] **T03** `Chunker.chunk(pages, doc_type)`, `ChunkerPlan` and `CHUNKERS_BY_DOC_TYPE`
+- [x] **T03** `Chunker.chunk(pages, doc_type)`, `ChunkerPlan` and `CHUNKERS_BY_DOC_TYPE`
   - AC: AC-002-01, AC-002-02
   - Files: `src/offshore_rag/ingestion/chunking.py` (`ChunkerPlan`, `ChunkerConfigError` replacing `UnknownChunkerError`), `src/offshore_rag/config.py`, `src/offshore_rag/ingestion/pipeline.py`, `src/offshore_rag/cli.py`, `tests/unit/test_chunker_plan.py`
   - Test first: `tests/unit/test_chunker_plan.py` — `from_settings` with defaults, with a per-type override, with an unknown strategy and an unknown doc type (message names the setting, the available strategies and the valid types); `for_doc_type` returns the configured chunkers; `FixedWordChunker` output unchanged

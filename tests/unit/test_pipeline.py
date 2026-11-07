@@ -10,7 +10,7 @@ from pathlib import Path
 import psycopg
 import pytest
 
-from offshore_rag.ingestion.chunking import FixedWordChunker
+from offshore_rag.ingestion.chunking import ChunkerPlan, FixedWordChunker
 from offshore_rag.ingestion.http import PoliteClient
 from offshore_rag.ingestion.manifest import ManifestEntry
 from offshore_rag.ingestion.pipeline import run_ingest
@@ -43,7 +43,7 @@ class Rig:
                 entries=list(entries),
                 client=client,
                 store=CorpusStore(self.conn),
-                chunkers=[FixedWordChunker(size=50, overlap=10)],
+                plan=ChunkerPlan([FixedWordChunker(size=50, overlap=10)]),
                 data_dir=self.data_dir,
             )
 

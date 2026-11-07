@@ -54,7 +54,7 @@ def test_ac_001_07_fixed_word_chunker_invariants() -> None:
     parsed = parse_pdf(pdfs.text_pdf(4, words_per_page=120))
     chunker = FixedWordChunker(size=50, overlap=10)
 
-    drafts = chunker.chunk(parsed.pages)
+    drafts = chunker.chunk(parsed.pages, "safety_alert")
 
     assert chunker.id and isinstance(chunker.id, str)
     assert dict(chunker.params) == {"size": 50, "overlap": 10}
@@ -105,7 +105,7 @@ def test_ac_001_07_stored_chunks_satisfy_invariants(db_env: IngestEnv) -> None:
 @pytest.mark.integration
 def test_ac_001_07_two_strategies_coexist_without_mixing(db_env: IngestEnv) -> None:
     """AC-001-07: chunk sets of two strategies for the same document are stored side by side, each intact."""
-    from offshore_rag.ingestion.chunking import FixedWordChunker
+    from offshore_rag.ingestion.chunking import ChunkerPlan, FixedWordChunker
     from offshore_rag.ingestion.http import PoliteClient
     from offshore_rag.ingestion.manifest import load_manifest
     from offshore_rag.ingestion.pdf import parse_pdf
@@ -124,7 +124,7 @@ def test_ac_001_07_two_strategies_coexist_without_mixing(db_env: IngestEnv) -> N
             entries=load_manifest(db_env.manifest_path),
             client=client,
             store=CorpusStore(conn),
-            chunkers=[big, small],
+            plan=ChunkerPlan([big, small]),
             data_dir=db_env.data_dir,
         )
 
@@ -134,7 +134,7 @@ def test_ac_001_07_two_strategies_coexist_without_mixing(db_env: IngestEnv) -> N
     pages = parse_pdf(data).pages
     for chunker in (big, small):
         mine = [c for c in stored if c["chunker"] == chunker.id and c["chunker_params"] == dict(chunker.params)]
-        expected = [(d.ordinal, d.page_start, d.page_end, d.text) for d in chunker.chunk(pages)]
+        expected = [(d.ordinal, d.page_start, d.page_end, d.text) for d in chunker.chunk(pages, "safety_alert")]
         got = [(c["ordinal"], c["page_start"], c["page_end"], c["text"]) for c in mine]
         assert sorted(got) == sorted(expected), f"chunk set {chunker.params} mixed with another or incomplete"
-    assert len(stored) == len(big.chunk(pages)) + len(small.chunk(pages))
+    assert len(stored) == len(big.chunk(pages, "safety_alert")) + len(small.chunk(pages, "safety_alert"))

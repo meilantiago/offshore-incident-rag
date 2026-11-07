@@ -17,9 +17,15 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
-from typing import Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Literal, Protocol, runtime_checkable
 
+from offshore_rag.ingestion.manifest import DOC_TYPES
 from offshore_rag.ingestion.pdf import PageText
+
+if TYPE_CHECKING:
+    from offshore_rag.config import Settings
+
+DocType = Literal["safety_alert", "panel_report", "district_report"]
 
 
 @dataclass(frozen=True)
@@ -28,6 +34,7 @@ class ChunkDraft:
     page_start: int
     page_end: int
     text: str
+    section: str | None = None
 
 
 @runtime_checkable
@@ -38,11 +45,11 @@ class Chunker(Protocol):
     @property
     def params(self) -> Mapping[str, int | str]: ...
 
-    def chunk(self, pages: Sequence[PageText]) -> list[ChunkDraft]: ...
+    def chunk(self, pages: Sequence[PageText], doc_type: DocType) -> list[ChunkDraft]: ...
 
 
-class UnknownChunkerError(ValueError):
-    """`CHUNKERS` names a strategy that does not exist."""
+class ChunkerConfigError(ValueError):
+    """`CHUNKERS` or `CHUNKERS_BY_DOC_TYPE` names a strategy or a document type that does not exist."""
 
 
 class FixedWordChunker:
@@ -62,7 +69,7 @@ class FixedWordChunker:
     def params(self) -> Mapping[str, int | str]:
         return {"size": self._size, "overlap": self._overlap}
 
-    def chunk(self, pages: Sequence[PageText]) -> list[ChunkDraft]:
+    def chunk(self, pages: Sequence[PageText], doc_type: DocType) -> list[ChunkDraft]:
         drafts: list[ChunkDraft] = []
         for run in _text_runs(pages):
             for start_page, end_page, words in self._windows(run):
@@ -104,11 +111,37 @@ _REGISTRY: dict[str, Callable[[], Chunker]] = {
 }
 
 
-def chunkers_from_config(names: Sequence[str]) -> list[Chunker]:
-    """Build the chunkers named in `CHUNKERS`, in order. Raises `UnknownChunkerError` for an unknown name."""
+def _config_error(setting: str, problem: str) -> ChunkerConfigError:
+    return ChunkerConfigError(
+        f"invalid {setting} setting: {problem} "
+        f"(available strategies: {', '.join(sorted(_REGISTRY))}; valid document types: {', '.join(DOC_TYPES)})"
+    )
+
+
+def _build(setting: str, names: Sequence[str]) -> list[Chunker]:
     unknown = [n for n in names if n not in _REGISTRY]
     if unknown:
-        raise UnknownChunkerError(
-            f"unknown chunker(s): {', '.join(unknown)} (available: {', '.join(sorted(_REGISTRY))})"
-        )
+        raise _config_error(setting, f"unknown strategy {', '.join(unknown)}")
     return [_REGISTRY[n]() for n in names]
+
+
+class ChunkerPlan:
+    """Which chunkers run for each document type: `default` for every type, replaced per type by `by_doc_type`."""
+
+    def __init__(self, default: Sequence[Chunker], by_doc_type: Mapping[str, Sequence[Chunker]] | None = None) -> None:
+        self._default = list(default)
+        self._by_doc_type = {k: list(v) for k, v in (by_doc_type or {}).items()}
+
+    @classmethod
+    def from_settings(cls, settings: Settings) -> ChunkerPlan:
+        """Validate `CHUNKERS` and `CHUNKERS_BY_DOC_TYPE`; raises `ChunkerConfigError` naming the offending setting."""
+        default = _build("CHUNKERS", settings.chunkers)
+        by_type: dict[str, list[Chunker]] = {}
+        for doc_type, names in settings.chunkers_by_doc_type.items():
+            if doc_type not in DOC_TYPES:
+                raise _config_error("CHUNKERS_BY_DOC_TYPE", f"unknown document type {doc_type}")
+            by_type[doc_type] = _build("CHUNKERS_BY_DOC_TYPE", names)
+        return cls(default, by_type)
+
+    def for_doc_type(self, doc_type: str) -> list[Chunker]:
+        return list(self._by_doc_type.get(doc_type, self._default))
