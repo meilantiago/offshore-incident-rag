@@ -1,9 +1,11 @@
-"""The structural report of stored chunk sets (spec 002 AC-002-10..12, plan.md#Structural report).
+"""The structural report of stored chunk sets (spec 002 AC-002-10..13, plan.md#Structural report).
 
 For each stored document, structure detection is re-run on its stored pages and two word streams are built: the full
 one (every word of every text page) and the kept one (removed content left out), each word tagged with its line.
 Each chunk is located by searching its words from the first word of its `page_start` in the stream it was cut from
-(full for `fixed_words`, kept for `structure_aware`); a chunk that cannot be located raises `ChunkLocationError`.
+(full for `fixed_words`, kept for `structure_aware`). A chunk that cannot be located marks its (document, strategy) set
+as stale (AC-002-13): the set is left out of every metric of its entry and listed under `stale_chunk_sets` with the
+ordinal of the first chunk not located; an entry whose every set is stale is left out.
 
 Per (strategy, document type) the report holds: documents, chunks and structure-not-recognized documents; chunk size
 in words (min, p10, median, p90, max); the shares of chunks spanning more than one page, holding a district page-header
@@ -36,6 +38,7 @@ STRUCTURE_AWARE = "structure_aware"
 GRID_LABELS = ("FIRE", "EXPLOSION", "FATALITY", "COLLISION")
 _GRID = [re.compile(rf"\b{label}\b") for label in GRID_LABELS]
 _MEASURED_KINDS = ("narrative", "acronyms")
+RECHUNK_HINT = 'run "offshore-rag rechunk" to rebuild them'
 
 
 class ReportSource(Protocol):
@@ -58,6 +61,31 @@ class NoChunksError(ValueError):
 
 class ChunkLocationError(ValueError):
     """A stored chunk whose words are not found in its document's stored pages."""
+
+    def __init__(self, chunk: ReportChunk) -> None:
+        self.chunk = chunk
+        super().__init__(
+            f"chunk {chunk.ordinal} of {chunk.chunker} in {chunk.source_url} "
+            f"(pages {chunk.page_start}-{chunk.page_end}) cannot be located in the stored pages"
+        )
+
+
+@dataclass(frozen=True)
+class StaleChunkSet:
+    """A (document, strategy) chunk set with a chunk that cannot be located in the stored pages (AC-002-13)."""
+
+    source_url: str
+    doc_type: str
+    strategy: str
+    ordinal: int  # the first chunk not located
+
+    def to_json(self) -> dict[str, Any]:
+        return {
+            "source_url": self.source_url,
+            "doc_type": self.doc_type,
+            "strategy": self.strategy,
+            "ordinal": self.ordinal,
+        }
 
 
 @dataclass
@@ -95,12 +123,14 @@ class StructuralReport:
     generated_at: datetime
     strategies: list[str]
     entries: list[StrategyMetrics]
+    stale_chunk_sets: list[StaleChunkSet] = field(default_factory=list)
 
     def to_json(self) -> dict[str, Any]:
         return {
             "generated_at": self.generated_at.astimezone(UTC).isoformat(),
             "strategies": self.strategies,
             "entries": [e.to_json() for e in self.entries],
+            "stale_chunk_sets": [s.to_json() for s in self.stale_chunk_sets],
         }
 
 
@@ -172,10 +202,7 @@ def _locate(stream: _Stream, chunk: ReportChunk) -> tuple[int, int]:
                 break  # the first word of a chunk is on its page_start
             if stream.words[pos] == target[0] and stream.words[pos : pos + n] == target:
                 return pos, pos + n - 1
-    raise ChunkLocationError(
-        f"chunk {chunk.ordinal} of {chunk.chunker} in {chunk.source_url} (pages {chunk.page_start}-{chunk.page_end}) "
-        "cannot be located in the stored pages"
-    )
+    raise ChunkLocationError(chunk)
 
 
 def _segments(structure: DocumentStructure, strategy: str, chunks: Sequence[ReportChunk]) -> list[Segment]:
@@ -186,25 +213,31 @@ def _segments(structure: DocumentStructure, strategy: str, chunks: Sequence[Repo
     return structure.segments
 
 
-def _measure_document(acc: _Acc, structure: DocumentStructure, strategy: str, chunks: Sequence[ReportChunk]) -> None:
+@dataclass(frozen=True)
+class _DocMeasure:
+    measured: int
+    crossing: int
+    missing: list[str]
+
+
+def _measure_document(structure: DocumentStructure, strategy: str, chunks: Sequence[ReportChunk]) -> _DocMeasure:
+    """Crossing and missing metrics of one chunk set; `ChunkLocationError` on the first chunk not located."""
     stream = _stream(structure, kept_only=strategy == STRUCTURE_AWARE)
     segments = _segments(structure, strategy, chunks)
     covered: set[int] = set()
+    crossing = 0
     for chunk in chunks:
         first, last = _locate(stream, chunk)
         first_line, last_line = stream.lines[first], stream.lines[last]
         covered.update(stream.lines[first : last + 1])
-        acc.measured += 1
-        if any(first_line < s.first <= last_line for s in segments):
-            acc.crossing += 1
+        crossing += any(first_line < s.first <= last_line for s in segments)
     missing = [
         s.label
         for s in segments
         if s.kind in _MEASURED_KINDS
         and not any(i in covered for i in range(s.first, s.last + 1) if not structure.lines[i].removed)
     ]
-    if missing:
-        acc.missing.append({"source_url": chunks[0].source_url, "sections": missing})
+    return _DocMeasure(len(chunks), crossing, missing)
 
 
 def _share(part: int, whole: int) -> float:
@@ -230,11 +263,19 @@ def build_structural_report(
         by_doc.setdefault(c.document_id, {}).setdefault(c.chunker, []).append(c)
 
     accs: dict[tuple[str, str], _Acc] = {}
+    stale: list[StaleChunkSet] = []
     for document_id, sets in by_doc.items():
         doc_type = next(iter(sets.values()))[0].doc_type
         structure = detect_structure(source.load_pages(document_id), cast(DocType, doc_type))
         for strategy, doc_chunks in sets.items():
             doc_chunks.sort(key=lambda c: c.ordinal)
+            measure: _DocMeasure | None = None
+            if structure is not None:
+                try:
+                    measure = _measure_document(structure, strategy, doc_chunks)
+                except ChunkLocationError as e:
+                    stale.append(StaleChunkSet(e.chunk.source_url, doc_type, strategy, e.chunk.ordinal))
+                    continue  # the whole set stays out of every metric of its entry (AC-002-13)
             acc = accs.setdefault((strategy, doc_type), _Acc())
             acc.documents.add(document_id)
             for c in doc_chunks:
@@ -242,10 +283,13 @@ def build_structural_report(
                 acc.multi_page += c.page_end > c.page_start
                 acc.header += bool(DISTRICT_HEADER.search(c.text))
                 acc.grid += all(g.search(c.text) for g in _GRID)
-            if structure is None:
+            if measure is None:
                 acc.not_recognized.add(document_id)
             else:
-                _measure_document(acc, structure, strategy, doc_chunks)
+                acc.measured += measure.measured
+                acc.crossing += measure.crossing
+                if measure.missing:
+                    acc.missing.append({"source_url": doc_chunks[0].source_url, "sections": measure.missing})
 
     entries = [
         _metrics(strategy, doc_type, accs[(strategy, doc_type)])
@@ -253,7 +297,8 @@ def build_structural_report(
         for doc_type in (*DOC_TYPES, *sorted({d for _, d in accs} - set(DOC_TYPES)))
         if (strategy, doc_type) in accs
     ]
-    return StructuralReport(generated_at, requested, entries)
+    stale.sort(key=lambda s: (requested.index(s.strategy), s.doc_type, s.source_url))
+    return StructuralReport(generated_at, requested, entries, stale)
 
 
 def _metrics(strategy: str, doc_type: str, acc: _Acc) -> StrategyMetrics:
@@ -323,4 +368,9 @@ def format_structural_summary(report: StructuralReport) -> str:
     lines.append(f"Missing fields or sections: {len(missing) or 'none'}")
     for e, m in missing:
         lines.append(f"  [{e.strategy}, {e.doc_type}] {m['source_url']}: {'; '.join(m['sections'])}")
+    if report.stale_chunk_sets:
+        lines.append(f"Stale chunk sets: {len(report.stale_chunk_sets)} (left out of the metrics)")
+        for s in report.stale_chunk_sets:
+            lines.append(f"  [{s.strategy}, {s.doc_type}] {s.source_url}: chunk {s.ordinal} cannot be located")
+        lines.append(RECHUNK_HINT)
     return "\n".join(lines)

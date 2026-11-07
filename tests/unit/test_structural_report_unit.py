@@ -1,8 +1,7 @@
-"""`build_structural_report` on hand-built chunks (spec 002 T10, AC-002-10, AC-002-11)."""
+"""`build_structural_report` on hand-built chunks (spec 002 T10, T92, AC-002-10, AC-002-11, AC-002-13)."""
 
 from __future__ import annotations
 
-import re
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any
@@ -13,8 +12,8 @@ from offshore_rag.ingestion.chunking import FixedWordChunker
 from offshore_rag.ingestion.pdf import PageText
 from offshore_rag.ingestion.store import ReportChunk
 from offshore_rag.ingestion.structural_report import (
-    ChunkLocationError,
     NoChunksError,
+    StaleChunkSet,
     StrategyMetrics,
     StructuralReport,
     build_structural_report,
@@ -186,12 +185,49 @@ def test_alert_kept_whole_does_not_cross_its_headings() -> None:
     assert entry.missing_sections == []
 
 
-def test_chunk_that_cannot_be_located_raises() -> None:
+def test_chunk_that_cannot_be_located_marks_its_set_stale() -> None:
+    """AC-002-13: the set is left out of every metric of its entry and listed with the first ordinal not located."""
     source = _district_source()
-    source.chunks.append(_chunk(1, STRUCTURE, 2, (2, 2), "words that are nowhere", "x"))
+    source.pages[2] = DISTRICT_PAGES
+    source.chunks += [
+        _chunk(2, STRUCTURE, 0, (2, 2), TEXT_17, FIELD_17),
+        _chunk(2, STRUCTURE, 1, (2, 2), "words that are nowhere", "x"),
+        _chunk(2, STRUCTURE, 2, (2, 2), "nor are these", "x"),
+        _chunk(2, FIXED, 0, (1, 2), DISTRICT_ALL),
+    ]
 
-    with pytest.raises(ChunkLocationError, match=re.escape("https://example.test/1.pdf")):
-        build_structural_report(source, None)
+    report = build_structural_report(source, None)
+
+    assert report.stale_chunk_sets == [
+        StaleChunkSet("https://example.test/2.pdf", "district_report", STRUCTURE, 1),
+    ]
+    stale = _entry(report, STRUCTURE)
+    assert (stale.documents, stale.chunks, stale.structure_not_recognized) == (1, 2, 0)
+    assert stale.size_words == size_distribution([len(TEXT_17.split()), len(TEXT_18.split())])
+    assert stale.multi_page_share == 0.0 and stale.boundary_crossing_share == 0.0
+    assert stale.missing_sections == []
+    assert (_entry(report, FIXED).documents, _entry(report, FIXED).chunks) == (2, 2)  # not stale: untouched
+    assert report.to_json()["stale_chunk_sets"] == [
+        {"source_url": "https://example.test/2.pdf", "doc_type": "district_report", "strategy": STRUCTURE, "ordinal": 1}
+    ]
+
+
+def test_entry_whose_only_set_is_stale_is_left_out() -> None:
+    source = _district_source()
+    source.chunks = [c for c in source.chunks if c.chunker == FIXED]
+    source.chunks.append(_chunk(1, STRUCTURE, 0, (2, 2), "words that are nowhere", "x"))
+
+    report = build_structural_report(source, None)
+
+    assert [(e.strategy, e.doc_type) for e in report.entries] == [(FIXED, "district_report")]
+    assert [s.ordinal for s in report.stale_chunk_sets] == [0]
+
+
+def test_report_without_stale_sets_has_an_empty_list() -> None:
+    report = build_structural_report(_district_source(), None)
+
+    assert report.stale_chunk_sets == []
+    assert report.to_json()["stale_chunk_sets"] == []
 
 
 def test_requested_strategy_without_chunks_raises_naming_it() -> None:

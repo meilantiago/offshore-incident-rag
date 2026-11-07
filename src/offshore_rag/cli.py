@@ -24,7 +24,6 @@ from offshore_rag.ingestion.rechunk import run_rechunk
 from offshore_rag.ingestion.report import format_summary, write_report
 from offshore_rag.ingestion.store import CorpusStore
 from offshore_rag.ingestion.structural_report import (
-    ChunkLocationError,
     NoChunksError,
     build_structural_report,
     format_structural_summary,
@@ -181,7 +180,7 @@ def chunk_report_command(
     with _migrated_database(settings) as conn:
         try:
             report = build_structural_report(CorpusStore(conn), strategy or None)
-        except (NoChunksError, ChunkLocationError) as e:
+        except NoChunksError as e:
             raise fatal(f"{e}; no report was written") from e
         except psycopg.Error as e:
             raise fatal(
@@ -190,4 +189,4 @@ def chunk_report_command(
     path = write_structural_report(report, settings.data_dir)
     typer.echo(format_structural_summary(report))
     typer.echo(f"Report: {path}")
-    raise typer.Exit(EXIT_OK)
+    raise typer.Exit(EXIT_PARTIAL if report.stale_chunk_sets else EXIT_OK)

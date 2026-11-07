@@ -108,7 +108,7 @@ Confirmed findings from `/sdd-verify`, as loose T90+ tasks. Each may carry its o
   - Done when: the new test runs and fails for lack of behaviour (today `chunk-report` exits 1 and writes no file), not for syntax or fixture errors; `python scripts/traceability.py` lists AC-002-13 as covered
   - Context: `plan.md#Structural report` `plan.md#CLI and exit codes`
 
-- [ ] **T92** `chunk-report` lists stale chunk sets instead of aborting
+- [x] **T92** `chunk-report` lists stale chunk sets instead of aborting
   - AC: AC-002-13
   - Files: `src/offshore_rag/ingestion/structural_report.py`, `src/offshore_rag/cli.py`, `tests/unit/test_structural_report_unit.py`, `tests/unit/test_cli_chunk_report.py`
   - Test first: `tests/unit/test_structural_report_unit.py` — a chunk that cannot be located marks its set stale, the set is out of every metric of its entry, `stale_chunk_sets` carries URL, doc type, strategy and ordinal; `tests/unit/test_cli_chunk_report.py` — exit 3 with the file written and the `rechunk` hint

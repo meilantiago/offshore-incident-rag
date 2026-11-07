@@ -1,4 +1,4 @@
-"""`offshore-rag chunk-report`: JSON file, stdout table and exit codes (spec 002 T11)."""
+"""`offshore-rag chunk-report`: JSON file, stdout table and exit codes (spec 002 T11, T92)."""
 
 from __future__ import annotations
 
@@ -14,6 +14,7 @@ from typer.testing import CliRunner
 from offshore_rag.cli import app
 from offshore_rag.db.migrate import migrate
 from offshore_rag.ingestion.structural_report import (
+    StaleChunkSet,
     StrategyMetrics,
     StructuralReport,
     format_structural_summary,
@@ -106,6 +107,21 @@ def test_summary_is_a_table_per_strategy_and_doc_type_with_missing_sections() ->
     assert "Background" in out and "https://example.test/a.pdf" in out
 
 
+def test_summary_lists_stale_chunk_sets_and_the_rechunk_hint() -> None:
+    stale = StaleChunkSet("https://example.test/b.pdf", "panel", "structure_aware", 4)
+    report = StructuralReport(
+        datetime(2026, 1, 2, tzinfo=UTC), ["fixed_words"], [_metrics("fixed_words", "panel")], [stale]
+    )
+
+    out = format_structural_summary(report)
+
+    assert "Stale chunk sets: 1" in out
+    assert "https://example.test/b.pdf" in out and "structure_aware" in out and "4" in out
+    assert out.rstrip().endswith('run "offshore-rag rechunk" to rebuild them')
+    clean = format_structural_summary(StructuralReport(report.generated_at, ["fixed_words"], report.entries))
+    assert "rechunk" not in clean
+
+
 def test_unreachable_database_exits_1_without_password(env: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     port = _free_port()
     monkeypatch.setenv("DATABASE_URL", f"postgresql://u:secret-pw-1@127.0.0.1:{port}/db1")
@@ -157,3 +173,25 @@ def test_empty_corpus_exits_1(env: Path, monkeypatch: pytest.MonkeyPatch, postgr
     assert result.exit_code == 1
     assert "no chunks" in result.output
     assert _reports(env) == []
+
+
+@pytest.mark.integration
+def test_stale_chunk_set_exits_3_with_the_file_written_and_the_rechunk_hint(
+    env: Path, monkeypatch: pytest.MonkeyPatch, postgres: PgSchema, server: FixtureServer
+) -> None:
+    _ingest(env, monkeypatch, postgres, server)
+    postgres.conn.execute("UPDATE chunks SET text = 'words never on any stored page' WHERE ordinal = 0")
+
+    result = runner.invoke(app, ["chunk-report"])
+
+    assert result.exit_code == 3, result.output
+    [name] = _reports(env)
+    data = json.loads((env / "data" / "reports" / name).read_text(encoding="utf-8"))
+    [item] = data["stale_chunk_sets"]
+    assert item == {
+        "source_url": server.url("/a.pdf"),
+        "doc_type": "safety_alert",
+        "strategy": "fixed_words",
+        "ordinal": 0,
+    }
+    assert name in result.output and "offshore-rag rechunk" in result.output
