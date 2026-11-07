@@ -78,13 +78,13 @@ Integration tests need Postgres: `docker compose up -d db` and `TEST_DATABASE_UR
 - Model: opus
 - Context: `plan.md#Structural report` `plan.md#Structure detection` `plan.md#CLI and exit codes` `spec.md#Metrics`
 
-- [ ] **T10** `build_structural_report`: chunk location and metrics per strategy and document type
+- [x] **T10** `build_structural_report`: chunk location and metrics per strategy and document type
   - AC: AC-002-10, AC-002-11
   - Files: `src/offshore_rag/ingestion/structural_report.py`, `src/offshore_rag/ingestion/store.py` (`chunks_for_report`), `tests/unit/test_structural_report_unit.py`
   - Test first: `tests/unit/test_structural_report_unit.py` — on hand-built chunks: percentiles, multi-page share, header and grid shares, boundary crossings, missing segments; a chunk that cannot be located raises
   - Done when: `python -m pytest tests/unit/test_structural_report_unit.py -q` green and `python scripts/check.py --fast` green
 
-- [ ] **T11** `offshore-rag chunk-report`: JSON under `data/reports/`, stdout table and errors
+- [x] **T11** `offshore-rag chunk-report`: JSON under `data/reports/`, stdout table and errors
   - AC: AC-002-10, AC-002-11, AC-002-12
   - Files: `src/offshore_rag/ingestion/structural_report.py` (`write_structural_report`, `format_structural_summary`), `src/offshore_rag/cli.py`, `tests/unit/test_cli_chunk_report.py`
   - Test first: `tests/unit/test_cli_chunk_report.py` — `--strategy` default and explicit; a strategy with no chunks exits 1, names it and writes no file; unreachable DB exits 1 without the password

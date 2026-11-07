@@ -136,13 +136,18 @@ class IngestionReport:
 
 def write_report(report: IngestionReport, data_dir: Path) -> Path:
     """Write `DATA_DIR/reports/ingest-<UTC timestamp>.json`; a new file per run, never overwriting one."""
+    return write_json_report(report.to_json(), data_dir, "ingest", report.started_at)
+
+
+def write_json_report(data: dict[str, Any], data_dir: Path, prefix: str, at: datetime) -> Path:
+    """Write `DATA_DIR/reports/<prefix>-<UTC timestamp>.json`, never overwriting an existing file."""
     reports = data_dir / "reports"
     reports.mkdir(parents=True, exist_ok=True)
-    stamp = report.started_at.astimezone(UTC).strftime("%Y%m%dT%H%M%S.%fZ")
-    text = json.dumps(report.to_json(), indent=2, ensure_ascii=False) + "\n"
+    stamp = at.astimezone(UTC).strftime("%Y%m%dT%H%M%S.%fZ")
+    text = json.dumps(data, indent=2, ensure_ascii=False) + "\n"
     suffix = 1
     while True:
-        path = reports / (f"ingest-{stamp}.json" if suffix == 1 else f"ingest-{stamp}-{suffix}.json")
+        path = reports / (f"{prefix}-{stamp}.json" if suffix == 1 else f"{prefix}-{stamp}-{suffix}.json")
         try:
             with path.open("x", encoding="utf-8", newline="\n") as f:
                 f.write(text)

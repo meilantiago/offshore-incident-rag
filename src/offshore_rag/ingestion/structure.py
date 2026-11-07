@@ -127,7 +127,7 @@ _DISTRICT_FIELDS = {
     24: ("SPECIFY VIOLATIONS DIRECTLY OR INDIRECTLY CONTRIBUTING",),
     25: ("DATE OF ONSITE INVESTIGATION",),
 }
-_DISTRICT_HEADER = re.compile(r"For Public Release|MMS - FORM 2010|EV2010R|PAGE:\s*\d+\s+OF\b", re.IGNORECASE)
+DISTRICT_HEADER = re.compile(r"For Public Release|MMS - FORM 2010|EV2010R|PAGE:\s*\d+\s+OF\b", re.IGNORECASE)
 _DISTRICT_TOP_LINE = re.compile(r"\d{1,3}|\d{2}-[A-Z]{3}-\d{4}", re.IGNORECASE)  # bare page count, header date
 _NUMBERED = re.compile(r"^(\d{1,2})\.?\s+(\S.*)$")
 _LATER_FIELD = re.compile(r"^(\d{1,2})\.\s+([A-Z][^:]*)")
@@ -156,7 +156,7 @@ def _district(pages: Sequence[PageText]) -> DocumentStructure | None:
         if page == 1:
             removed.update(indexes)
             continue
-        removed.update(i for i in indexes if _DISTRICT_HEADER.search(lines[i].text))
+        removed.update(i for i in indexes if DISTRICT_HEADER.search(lines[i].text))
         top = next((i for i in indexes if i not in removed), None)
         if top is not None and _DISTRICT_TOP_LINE.fullmatch(lines[top].text):
             removed.add(top)

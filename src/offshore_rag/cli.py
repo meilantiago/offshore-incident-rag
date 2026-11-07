@@ -1,4 +1,4 @@
-"""Command line: `offshore-rag db migrate | build-manifest | ingest | rechunk`.
+"""Command line: `offshore-rag db migrate | build-manifest | ingest | rechunk | chunk-report`.
 
 Exit codes: 0 ok, 3 finished with failed documents, 1 fatal.
 """
@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from contextlib import contextmanager
-from typing import Any
+from typing import Annotated, Any
 
 import psycopg
 import typer
@@ -23,6 +23,13 @@ from offshore_rag.ingestion.pipeline import run_ingest
 from offshore_rag.ingestion.rechunk import run_rechunk
 from offshore_rag.ingestion.report import format_summary, write_report
 from offshore_rag.ingestion.store import CorpusStore
+from offshore_rag.ingestion.structural_report import (
+    ChunkLocationError,
+    NoChunksError,
+    build_structural_report,
+    format_structural_summary,
+    write_structural_report,
+)
 from offshore_rag.logging import configure_logging
 
 EXIT_OK = 0
@@ -159,3 +166,28 @@ def rechunk_command() -> None:
             ) from e
     typer.echo(summary.format())
     raise typer.Exit(EXIT_PARTIAL if summary.has_failures else EXIT_OK)
+
+
+@app.command("chunk-report")
+def chunk_report_command(
+    strategy: Annotated[
+        list[str] | None,
+        typer.Option("--strategy", help="Strategy to report (repeatable). Default: every strategy in the database."),
+    ] = None,
+) -> None:
+    """Write the structural report of the stored chunk sets under DATA_DIR/reports/ and print its summary."""
+    settings = get_settings()
+    configure_logging(settings.log_format)
+    with _migrated_database(settings) as conn:
+        try:
+            report = build_structural_report(CorpusStore(conn), strategy or None)
+        except (NoChunksError, ChunkLocationError) as e:
+            raise fatal(f"{e}; no report was written") from e
+        except psycopg.Error as e:
+            raise fatal(
+                f"database error during chunk-report ({settings.describe_database()}): {' '.join(str(e).split())}"
+            ) from e
+    path = write_structural_report(report, settings.data_dir)
+    typer.echo(format_structural_summary(report))
+    typer.echo(f"Report: {path}")
+    raise typer.Exit(EXIT_OK)

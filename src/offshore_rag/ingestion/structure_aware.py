@@ -64,7 +64,7 @@ class StructureAwareChunker:
         if structure is None:
             return self._fallback(pages, doc_type)
         if doc_type == "safety_alert":
-            structure = self._whole_alert_if_it_fits(structure)
+            structure = whole_alert_if_it_fits(structure, self._size_cap)
         medians = _median_line_lengths(structure.lines)
         drafts: list[ChunkDraft] = []
         for segment in structure.segments:
@@ -79,12 +79,15 @@ class StructureAwareChunker:
         windows = FixedWordChunker(size=self._size_cap, overlap=0).chunk(pages, doc_type)
         return [replace(d, section=NOT_RECOGNIZED) for d in windows]
 
-    def _whole_alert_if_it_fits(self, structure: DocumentStructure) -> DocumentStructure:
-        kept = [i for i, line in enumerate(structure.lines) if not line.removed]
-        if not kept or sum(len(structure.lines[i].text.split()) for i in kept) > self._size_cap:
-            return structure
-        whole = Segment(ALERT, kept[0], len(structure.lines) - 1, "narrative")
-        return replace(structure, segments=[whole])
+
+def whole_alert_if_it_fits(structure: DocumentStructure, size_cap: int) -> DocumentStructure:
+    """A Safety Alert's segments as `structure_aware` chunks them: one `alert` segment when its kept text fits the cap
+    (AC-002-06). Shared with the structural report, so both use the same boundaries."""
+    kept = [i for i, line in enumerate(structure.lines) if not line.removed]
+    if not kept or sum(len(structure.lines[i].text.split()) for i in kept) > size_cap:
+        return structure
+    whole = Segment(ALERT, kept[0], len(structure.lines) - 1, "narrative")
+    return replace(structure, segments=[whole])
 
 
 def _median_line_lengths(lines: Sequence[Line]) -> dict[int, float]:

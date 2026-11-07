@@ -7,7 +7,7 @@ The connection is in autocommit mode; every write runs in its own explicit trans
 from __future__ import annotations
 
 import json
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Literal
@@ -37,6 +37,22 @@ class StoredDocumentRef:
     id: int
     source_url: str
     doc_type: str
+
+
+@dataclass(frozen=True)
+class ReportChunk:
+    """A stored chunk with what the structural report needs of its document (plan.md#Structural report)."""
+
+    document_id: int
+    source_url: str
+    doc_type: str
+    chunker: str
+    chunker_params: Mapping[str, Any]
+    ordinal: int
+    page_start: int
+    page_end: int
+    text: str
+    section: str | None
 
 
 @dataclass(frozen=True)
@@ -186,6 +202,22 @@ class CorpusStore:
                         )
                     )
         return "created"
+
+    def chunks_for_report(self, strategies: Sequence[str] | None) -> list[ReportChunk]:
+        """The chunks of the given strategies (all stored strategies when `None`), by document, strategy, ordinal."""
+        query = (
+            "SELECT c.document_id, d.source_url, d.doc_type, c.chunker, c.chunker_params, c.ordinal, c.page_start, "
+            "c.page_end, c.text, c.section FROM chunks c JOIN documents d ON d.id = c.document_id"
+        )
+        params: tuple[Any, ...] = ()
+        if strategies is not None:
+            query += " WHERE c.chunker = ANY(%s)"
+            params = (list(strategies),)
+        rows = self._conn.execute(query + " ORDER BY c.document_id, c.chunker, c.ordinal", params).fetchall()
+        return [
+            ReportChunk(int(r[0]), r[1], r[2], r[3], dict(r[4]), int(r[5]), int(r[6]), int(r[7]), r[8], r[9])
+            for r in rows
+        ]
 
     def counts(self) -> CorpusCounts:
         row = self._conn.execute(
