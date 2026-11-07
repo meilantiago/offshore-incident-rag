@@ -55,19 +55,19 @@ Integration tests need Postgres: `docker compose up -d db` and `TEST_DATABASE_UR
 - Model: sonnet
 - Context: `plan.md#Ingestion changes` `plan.md#Re-chunking` `plan.md#Package layout` `plan.md#CLI and exit codes`
 
-- [ ] **T07** `ingest` with a `ChunkerPlan`: per-strategy counts, durations and structure not recognized
+- [x] **T07** `ingest` with a `ChunkerPlan`: per-strategy counts, durations and structure not recognized
   - AC: AC-002-01, AC-002-07, AC-002-08
   - Files: `src/offshore_rag/ingestion/pipeline.py`, `src/offshore_rag/ingestion/report.py`, `tests/unit/test_pipeline.py`, `tests/unit/test_report.py`
   - Test first: `tests/unit/test_report.py` — `DocumentOutcome.chunks_by_strategy` and `structure_not_recognized`; the report and summary list those documents with source URL and doc type and the duration per strategy; the exit code ignores them
   - Done when: `python -m pytest tests/unit/test_pipeline.py tests/unit/test_report.py tests/ingestion/test_chunker_selection.py tests/ingestion/test_structure_fallback.py tests/ingestion/test_structure_aware_invariants.py -q` green and `python scripts/check.py --fast` green
 
-- [ ] **T08** Store queries and `run_rechunk`
+- [x] **T08** Store queries and `run_rechunk`
   - AC: AC-002-09
   - Files: `src/offshore_rag/ingestion/store.py` (`iter_stored_documents`, `load_pages`, `replace_chunk_set`), `src/offshore_rag/ingestion/rechunk.py`, `tests/unit/test_rechunk_unit.py`
   - Test first: `tests/unit/test_rechunk_unit.py` (integration) — `replace_chunk_set` returns `unchanged` for identical params and keeps ids, replaces sets with older params in one transaction; `run_rechunk` summary counts per strategy
   - Done when: `python -m pytest tests/unit/test_rechunk_unit.py -q` green and `python scripts/check.py --fast` green
 
-- [ ] **T09** `offshore-rag rechunk` and the shared database checks
+- [x] **T09** `offshore-rag rechunk` and the shared database checks
   - AC: AC-002-02, AC-002-09, AC-002-12
   - Files: `src/offshore_rag/cli.py`, `tests/unit/test_cli_rechunk.py`
   - Test first: `tests/unit/test_cli_rechunk.py` — exit 0 with the summary printed; invalid config exits 1 before DB access; unreachable DB and pending migrations exit 1 without the password

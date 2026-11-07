@@ -26,6 +26,10 @@ class DocumentOutcome:
     image_only_pages: int = 0
     durations_ms: dict[str, float] = field(default_factory=dict)
     chunk_words: list[int] = field(default_factory=list)  # word count of every chunk stored by this run
+    doc_type: str = ""
+    chunks_by_strategy: dict[str, int] = field(default_factory=dict)
+    chunk_ms_by_strategy: dict[str, float] = field(default_factory=dict)
+    structure_not_recognized: bool = False  # a chunk is labelled `structure_not_recognized` (AC-002-07)
 
     def to_json(self) -> dict[str, Any]:
         return {
@@ -35,6 +39,8 @@ class DocumentOutcome:
             "reason": self.reason,
             "pages": self.pages,
             "chunks": self.chunks,
+            "chunks_by_strategy": self.chunks_by_strategy,
+            "structure_not_recognized": self.structure_not_recognized,
             "image_only": self.image_only,
             "durations_ms": {k: round(v, 1) for k, v in self.durations_ms.items()},
         }
@@ -74,6 +80,23 @@ class IngestionReport:
             "chunks": sum(d.chunks for d in stored),
         }
 
+    def not_recognized(self) -> list[DocumentOutcome]:
+        return [d for d in self.stored if d.structure_not_recognized]
+
+    def chunks_by_strategy(self) -> dict[str, int]:
+        totals: dict[str, int] = {}
+        for d in self.stored:
+            for name, n in d.chunks_by_strategy.items():
+                totals[name] = totals.get(name, 0) + n
+        return totals
+
+    def chunk_ms_by_strategy(self) -> dict[str, float]:
+        totals: dict[str, float] = {}
+        for d in self.stored:
+            for name, ms in d.chunk_ms_by_strategy.items():
+                totals[name] = totals.get(name, 0.0) + ms
+        return totals
+
     def image_only_page_share(self) -> float | None:
         pages = sum(d.pages for d in self.stored)
         if pages == 0:
@@ -96,6 +119,11 @@ class IngestionReport:
             "retries": self.retries,
             "image_only_page_share": self.image_only_page_share(),
             "chunk_words": self.chunk_words(),
+            "chunks_by_strategy": self.chunks_by_strategy(),
+            "chunk_durations_ms_by_strategy": {k: round(v, 1) for k, v in self.chunk_ms_by_strategy().items()},
+            "structure_not_recognized": [
+                {"source_url": d.source_url, "doc_type": d.doc_type} for d in self.not_recognized()
+            ],
             "image_only_documents": [d.source_url for d in self.stored if d.image_only],
             "failures": [
                 {"source_url": d.source_url, "stage": d.stage, "reason": d.reason}
@@ -140,6 +168,13 @@ def format_summary(report: IngestionReport) -> str:
         lines.append("Chunk size (words): n/a")
     else:
         lines.append(f"Chunk size (words): min {words['min']}, median {words['median']:g}, max {words['max']}")
+    for name, n in report.chunks_by_strategy().items():
+        ms = report.chunk_ms_by_strategy().get(name, 0.0)
+        lines.append(f"Chunks {name}: {n} ({ms:.0f} ms)")
+    unrecognized = report.not_recognized()
+    if unrecognized:
+        lines.append("Structure not recognized")
+        lines += [f"  [{d.doc_type}] {d.source_url}" for d in unrecognized]
     failed = [d for d in report.documents if d.status == "failed"]
     if failed:
         lines.append("Failures")

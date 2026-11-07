@@ -17,7 +17,7 @@ import psycopg
 from offshore_rag.ingestion.chunking import ChunkDraft, Chunker
 from offshore_rag.ingestion.http import FetchResult
 from offshore_rag.ingestion.manifest import ManifestEntry
-from offshore_rag.ingestion.pdf import ParsedPdf
+from offshore_rag.ingestion.pdf import PageText, ParsedPdf
 
 ChunkSets = Sequence[tuple[Chunker, Sequence[ChunkDraft]]]
 
@@ -30,6 +30,13 @@ class StoredDocument:
     etag: str | None
     last_modified: str | None
     raw_path: str
+
+
+@dataclass(frozen=True)
+class StoredDocumentRef:
+    id: int
+    source_url: str
+    doc_type: str
 
 
 @dataclass(frozen=True)
@@ -127,6 +134,58 @@ class CorpusStore:
                             )
                         )
         return outcome
+
+    def iter_stored_documents(self, doc_types: Sequence[str]) -> list[StoredDocumentRef]:
+        """Stored documents of the given types, in id order."""
+        rows = self._conn.execute(
+            "SELECT id, source_url, doc_type FROM documents WHERE doc_type = ANY(%s) ORDER BY id", (list(doc_types),)
+        ).fetchall()
+        return [StoredDocumentRef(int(r[0]), r[1], r[2]) for r in rows]
+
+    def load_pages(self, document_id: int) -> list[PageText]:
+        rows = self._conn.execute(
+            "SELECT page_number, text, image_only FROM pages WHERE document_id = %s ORDER BY page_number",
+            (document_id,),
+        ).fetchall()
+        return [PageText(int(r[0]), r[1], bool(r[2])) for r in rows]
+
+    def replace_chunk_set(
+        self, document_id: int, chunker: Chunker, drafts: Sequence[ChunkDraft]
+    ) -> Literal["created", "unchanged"]:
+        """Store `drafts` as the document's chunk set of `chunker`, in one transaction.
+
+        A stored set with the same strategy and identical parameters is left untouched (ids and text kept).
+        Sets of that strategy with other parameters are deleted before the new one is inserted.
+        """
+        params = json.dumps(dict(chunker.params), sort_keys=True)
+        with self._conn.transaction(), self._conn.cursor() as cur:
+            same = cur.execute(
+                "SELECT 1 FROM chunks WHERE document_id = %s AND chunker = %s AND chunker_params = %s::jsonb LIMIT 1",
+                (document_id, chunker.id, params),
+            ).fetchone()
+            if same is not None:
+                return "unchanged"
+            cur.execute("DELETE FROM chunks WHERE document_id = %s AND chunker = %s", (document_id, chunker.id))
+            with cur.copy(
+                "COPY chunks (document_id, chunker, chunker_params, ordinal, page_start, page_end, text, "
+                "char_count, word_count, section) FROM STDIN"
+            ) as copy:
+                for d in drafts:
+                    copy.write_row(
+                        (
+                            document_id,
+                            chunker.id,
+                            params,
+                            d.ordinal,
+                            d.page_start,
+                            d.page_end,
+                            d.text,
+                            len(d.text),
+                            len(d.text.split()),
+                            d.section,
+                        )
+                    )
+        return "created"
 
     def counts(self) -> CorpusCounts:
         row = self._conn.execute(

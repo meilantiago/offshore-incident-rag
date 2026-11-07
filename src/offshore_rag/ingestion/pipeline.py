@@ -29,6 +29,7 @@ from offshore_rag.ingestion.manifest import ManifestEntry
 from offshore_rag.ingestion.pdf import PdfParseError, parse_pdf
 from offshore_rag.ingestion.report import STAGES, DocumentOutcome, IngestionReport, Stage
 from offshore_rag.ingestion.store import CorpusStore
+from offshore_rag.ingestion.structure_aware import NOT_RECOGNIZED
 
 log = structlog.get_logger()
 
@@ -125,10 +126,13 @@ def _process(
 
     # -- chunk ----------------------------------------------------------------------------------------------
     t = clock()
+    chunk_sets: list[tuple[Chunker, list[ChunkDraft]]] = []
+    chunk_ms: dict[str, float] = {}
     try:
-        chunk_sets: list[tuple[Chunker, list[ChunkDraft]]] = [
-            (c, c.chunk(parsed.pages, cast(DocType, entry.doc_type))) for c in plan.for_doc_type(entry.doc_type)
-        ]
+        for chunker in plan.for_doc_type(entry.doc_type):
+            t_chunker = clock()
+            chunk_sets.append((chunker, chunker.chunk(parsed.pages, cast(DocType, entry.doc_type))))
+            chunk_ms[chunker.id] = (clock() - t_chunker) * 1000.0
     except ValueError as e:
         raise _DocumentFailure("chunk", f"{type(e).__name__}: {e}") from e
     finally:
@@ -154,6 +158,10 @@ def _process(
         image_only=image_only_pages == parsed.page_count,
         image_only_pages=image_only_pages,
         chunk_words=[len(d.text.split()) for d in drafts],
+        doc_type=entry.doc_type,
+        chunks_by_strategy={c.id: len(ds) for c, ds in chunk_sets},
+        chunk_ms_by_strategy=chunk_ms,
+        structure_not_recognized=any(d.section == NOT_RECOGNIZED for d in drafts),
     )
 
 

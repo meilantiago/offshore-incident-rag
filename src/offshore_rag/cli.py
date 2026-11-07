@@ -1,9 +1,13 @@
-"""Command line: `offshore-rag db migrate | build-manifest | ingest`.
+"""Command line: `offshore-rag db migrate | build-manifest | ingest | rechunk`.
 
 Exit codes: 0 ok, 3 finished with failed documents, 1 fatal.
 """
 
 from __future__ import annotations
+
+from collections.abc import Iterator
+from contextlib import contextmanager
+from typing import Any
 
 import psycopg
 import typer
@@ -16,6 +20,7 @@ from offshore_rag.ingestion.chunking import ChunkerConfigError, ChunkerPlan
 from offshore_rag.ingestion.http import FetchError, PoliteClient
 from offshore_rag.ingestion.manifest import ManifestError, load_manifest, write_manifest
 from offshore_rag.ingestion.pipeline import run_ingest
+from offshore_rag.ingestion.rechunk import run_rechunk
 from offshore_rag.ingestion.report import format_summary, write_report
 from offshore_rag.ingestion.store import CorpusStore
 from offshore_rag.logging import configure_logging
@@ -83,6 +88,27 @@ def _client(settings: Settings) -> PoliteClient:
     )
 
 
+@contextmanager
+def _migrated_database(settings: Settings) -> Iterator[psycopg.Connection[Any]]:
+    """Open the database for a command that never migrates: fatal if unreachable or not fully migrated."""
+    try:
+        conn = connect(settings)
+    except DatabaseUnavailable as e:
+        raise fatal(str(e)) from e
+    target = settings.describe_database()
+    with conn:
+        try:
+            pending = pending_migrations(conn)
+        except psycopg.Error as e:
+            raise fatal(f"cannot read the schema of the database ({target}): {' '.join(str(e).split())}") from e
+        if pending:
+            raise fatal(
+                f"the database schema is missing or not migrated ({target}): pending migrations "
+                f"{', '.join(pending)}. Run `offshore-rag db migrate` first."
+            )
+        yield conn
+
+
 @app.command("ingest")
 def ingest_command() -> None:
     """Download, parse, chunk and store every manifest entry, then write the ingestion report."""
@@ -99,21 +125,8 @@ def ingest_command() -> None:
     except ChunkerConfigError as e:
         raise fatal(str(e)) from e
     # 2. The database must be reachable and fully migrated. `ingest` never migrates by itself.
-    try:
-        conn = connect(settings)
-    except DatabaseUnavailable as e:
-        raise fatal(str(e)) from e
-    target = settings.describe_database()
-    with conn:
-        try:
-            pending = pending_migrations(conn)
-        except psycopg.Error as e:
-            raise fatal(f"cannot read the schema of the database ({target}): {' '.join(str(e).split())}") from e
-        if pending:
-            raise fatal(
-                f"the database schema is missing or not migrated ({target}): pending migrations "
-                f"{', '.join(pending)}. Run `offshore-rag db migrate` first."
-            )
+    with _migrated_database(settings) as conn:
+        target = settings.describe_database()
         # 3. Documents, one at a time. Per-document failures are in the report; anything else is fatal.
         with _client(settings) as client:
             try:
@@ -126,3 +139,23 @@ def ingest_command() -> None:
     typer.echo(format_summary(report))
     typer.echo(f"Report: {path}")
     raise typer.Exit(EXIT_PARTIAL if report.has_failures else EXIT_OK)
+
+
+@app.command("rechunk")
+def rechunk_command() -> None:
+    """Build the configured chunk sets for every stored document from its stored pages, without downloading."""
+    settings = get_settings()
+    configure_logging(settings.log_format)
+    try:
+        plan = ChunkerPlan.from_settings(settings)
+    except ChunkerConfigError as e:
+        raise fatal(str(e)) from e
+    with _migrated_database(settings) as conn:
+        try:
+            summary = run_rechunk(CorpusStore(conn), plan)
+        except psycopg.Error as e:
+            raise fatal(
+                f"database error during rechunk ({settings.describe_database()}): {' '.join(str(e).split())}"
+            ) from e
+    typer.echo(summary.format())
+    raise typer.Exit(EXIT_PARTIAL if summary.has_failures else EXIT_OK)

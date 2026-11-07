@@ -92,3 +92,37 @@ def test_empty_run_has_no_share_and_no_chunk_stats(tmp_path: Path) -> None:
     assert data["chunk_words"] == {"min": None, "median": None, "max": None}
     assert not report.has_failures
     assert "n/a" in format_summary(report)
+
+
+def test_structure_not_recognized_documents_are_listed_and_do_not_fail_the_run(tmp_path: Path) -> None:
+    docs = [
+        DocumentOutcome(
+            "http://x/odd.pdf",
+            "ingested",
+            pages=2,
+            chunks=3,
+            doc_type="district_report",
+            chunks_by_strategy={"fixed_words": 2, "structure_aware": 1},
+            chunk_ms_by_strategy={"fixed_words": 4.0, "structure_aware": 9.0},
+            structure_not_recognized=True,
+        ),
+        DocumentOutcome(
+            "http://x/ok.pdf",
+            "ingested",
+            pages=1,
+            chunks=1,
+            doc_type="safety_alert",
+            chunks_by_strategy={"structure_aware": 1},
+            chunk_ms_by_strategy={"structure_aware": 1.0},
+        ),
+    ]
+    report = IngestionReport(datetime(2026, 11, 4, tzinfo=UTC), 2, docs, {"total": 1.0}, 0, 2, 0)
+    data = json.loads(write_report(report, tmp_path).read_text(encoding="utf-8"))
+    assert data["structure_not_recognized"] == [{"source_url": "http://x/odd.pdf", "doc_type": "district_report"}]
+    assert data["chunks_by_strategy"]["structure_aware"] == 2
+    assert data["chunk_durations_ms_by_strategy"] == {"fixed_words": 4.0, "structure_aware": 10.0}
+    assert not report.has_failures
+    text = format_summary(report)
+    assert "[district_report] http://x/odd.pdf" in text
+    assert "http://x/ok.pdf" not in text
+    assert "Chunks structure_aware: 2 (10 ms)" in text
