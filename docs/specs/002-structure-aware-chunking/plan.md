@@ -64,6 +64,8 @@ It never builds a `PoliteClient`, so no HTTP request is possible (AC-002-09). It
 
 Documents with no detected structure count in the totals but not in the crossing and missing metrics. A requested strategy with no chunks → exit 1, message naming it, no file (AC-002-12). Output: `data/reports/chunks-<UTC timestamp>.json` and a table on stdout (AC-002-10).
 
+**Stale chunk sets** (AC-002-13). A chunk that cannot be located marks its (document, strategy) set as stale instead of aborting: the set is left out of every metric of its entry (documents, chunks and shares), and the report gains a top-level `stale_chunk_sets` list of `{source_url, doc_type, strategy, ordinal}` (`ordinal` = first chunk not located). The stdout summary lists them and ends with `run "offshore-rag rechunk" to rebuild them`. The file is written and the command exits 3, the code used elsewhere for "done, with documents to look at".
+
 ### Amendment of spec 001
 AC-001-07 in `docs/specs/001-corpus-ingestion/spec.md` is replaced by the wording proposed in spec 002, in this branch, in the same commit as `tasks.md`, before approval. That changes 001's hash: at gate 1 the user runs `python scripts/approve.py 001` and `python scripts/approve.py 002`. The AC-001-07 tests in `tests/ingestion/test_chunking.py` apply the substring and coverage checks to `fixed_words` sets only, as the amended text says; the AC-002-08 tests cover `structure_aware`. The glossary terms are already in `docs/glossary.md`.
 
@@ -106,7 +108,7 @@ class Chunker(Protocol):
 |---|---|
 | `offshore-rag ingest` | as spec 001; config errors from `CHUNKERS`/`CHUNKERS_BY_DOC_TYPE` are fatal (1) before any network or DB access (AC-002-02) |
 | `offshore-rag rechunk` | 0 ok; 3 some document failed; 1 fatal: invalid config (before DB access), unreachable DB or pending migrations, message without password (AC-002-02, AC-002-12) |
-| `offshore-rag chunk-report [--strategy NAME …]` | 0 report written; 1 a requested strategy has no chunks (no file written), unreachable DB or pending migrations (AC-002-12). Default strategies: those present in `chunks`. |
+| `offshore-rag chunk-report [--strategy NAME …]` | 0 report written; 3 report written with stale chunk sets listed (AC-002-13); 1 a requested strategy has no chunks (no file written), unreachable DB or pending migrations (AC-002-12). Default strategies: those present in `chunks`. |
 
 `rechunk` and `chunk-report` reuse the connection and schema checks of `ingest` (extracted into one helper in `cli.py`).
 
@@ -128,11 +130,12 @@ Three trimmed real PDFs under `tests/fixtures/bsee/`, recorded in `SOURCES.md` (
 | AC-002-05 | unit | panel fixture: headings → labelled chunks, no cross-section chunk, `acronyms` label, Contents and figure list absent, no page-number line |
 | AC-002-06 | unit | alert fixture with large and small caps; generated Notice No. N alert, fitting and not fitting |
 | AC-002-07 | unit + integration | generated unrecognized district and panel: fallback windows labelled, all words covered; `ingest` exit 0, `fixed_words` stored, report lists them with URL and type |
-| AC-002-08 | integration (Postgres) | invariants on every stored `structure_aware` chunk of all fixtures and the image-only generated document, checked against stored pages minus removed content |
+| AC-002-08 | integration (Postgres) | invariants on every stored `structure_aware` chunk of all fixtures and the image-only generated document, checked against stored pages minus removed content; the chunks of a set tile the kept word stream exactly (coverage) |
 | AC-002-09 | integration (Postgres) | ingest `fixed_words` only → enable `structure_aware` → `rechunk`: sets created, server request count 0, `fixed_words` ids/text unchanged, second run same row counts, summary printed |
 | AC-002-10 | integration (Postgres) | `chunk-report` on the fixtures: file under `data/reports/`, stdout summary, every metric present per strategy and type |
 | AC-002-11 | integration (Postgres) | values of that report: zeros for `structure_aware`, max ≤ 250, nothing missing; `fixed_words` district header and crossing shares > 0 |
 | AC-002-12 | CLI + integration | empty DB / never-run strategy → non-zero, strategy named, no file; unreachable DB and missing schema for `rechunk` and `chunk-report` → exit 1, no password in output |
+| AC-002-13 | integration (Postgres) | fixtures ingested, then one stored `structure_aware` chunk's text altered in the database: `chunk-report` exits 3, writes the file, lists the set under `stale_chunk_sets` with URL, strategy and ordinal, leaves it out of the metrics, and the summary names `rechunk` |
 
 Unit tests of the splitting rule and the break heuristics (paragraph, sentence, hard cut) live in `tests/unit/test_structure_aware_unit.py`; they support the ACs and carry no AC id of their own.
 
@@ -143,7 +146,7 @@ None on retrieval or answer metrics: nothing is embedded, retrieved or answered,
 - **Rules tuned to a sample.** BSEE layouts drift across decades (MMS vs BSEE era, two page-number positions in panel reports). Mitigation: unrecognized structure is a visible fallback, and the structural report on the 690-document sample shows the fallback share and missing sections per type before merge.
 - **Heuristic breaks.** Bad paragraph detection only moves cuts inside the cap; AC-002-08 guarantees no word is lost, duplicated or reordered.
 - **Contents titles that differ from body headings** (punctuation, line wraps). Mitigation: normalized matching; unmatched entries are reported as missing sections, not silently dropped.
-- **Chunk location in the report** relies on exact word-sequence matching; a chunk that cannot be located is a bug and fails the report command loudly rather than being skipped.
+- **Chunk location in the report** relies on exact word-sequence matching. A chunk that cannot be located (usually a set produced by older rules, or a matching bug) is not skipped silently: its set is listed as stale, left out of the metrics, and the command exits 3 (AC-002-13).
 - **Changing the `Chunker` signature** touches spec 001 code and tests; the AC-001 tests stay green as the regression check.
 
 ## Open points for the spec

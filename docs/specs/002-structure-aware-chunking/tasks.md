@@ -100,3 +100,17 @@ Confirmed findings from `/sdd-verify`, as loose T90+ tasks. Each may carry its o
   - Done when: `python -m pytest tests/unit/test_structure_unit.py tests/ingestion/test_panel_structure.py -q` green and `python scripts/check.py --fast` green
   - Context: `plan.md#Structure detection` `spec.md#Definitions`
   - Found: `rechunk` on the local 690-document sample left 118 `structure_aware` chunks of 2 panel reports labelled like `Chronology of Events……………`, because `_CONTENTS_ENTRY` strips `.`, `_` and spaces before the page number but not `…`.
+
+- [ ] **T91** Red acceptance test for AC-002-13 (stale chunk sets in the structural report)
+  - AC: AC-002-13
+  - Files: `tests/ingestion/test_structural_report.py`
+  - Test first: the test itself, written by `test-writer` from AC-002-13 and `plan.md#Structural report`
+  - Done when: the new test runs and fails for lack of behaviour (today `chunk-report` exits 1 and writes no file), not for syntax or fixture errors; `python scripts/traceability.py` lists AC-002-13 as covered
+  - Context: `plan.md#Structural report` `plan.md#CLI and exit codes`
+
+- [ ] **T92** `chunk-report` lists stale chunk sets instead of aborting
+  - AC: AC-002-13
+  - Files: `src/offshore_rag/ingestion/structural_report.py`, `src/offshore_rag/cli.py`, `tests/unit/test_structural_report_unit.py`, `tests/unit/test_cli_chunk_report.py`
+  - Test first: `tests/unit/test_structural_report_unit.py` — a chunk that cannot be located marks its set stale, the set is out of every metric of its entry, `stale_chunk_sets` carries URL, doc type, strategy and ordinal; `tests/unit/test_cli_chunk_report.py` — exit 3 with the file written and the `rechunk` hint
+  - Done when: `python -m pytest tests/unit/test_structural_report_unit.py tests/unit/test_cli_chunk_report.py tests/ingestion/test_structural_report.py -q` green and `python scripts/check.py --all` green
+  - Context: `plan.md#Structural report` `plan.md#CLI and exit codes` `plan.md#Risks`

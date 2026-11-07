@@ -77,7 +77,8 @@ Terms used in the acceptance criteria:
   - each chunk belongs to one document and has 1 ≤ `page_start` ≤ `page_end` ≤ the document's page count;
   - its first word comes from `page_start` and its last word from `page_end`;
   - its words appear in order and contiguously in the text of its page range once the removed content is taken out, and no other word of that range is skipped;
-  - no chunk contains text from an image-only page.
+  - no chunk contains text from an image-only page;
+  - every word of the document's text pages, once the removed content is taken out, is in exactly one chunk of the set (the coverage guarantee that AC-001-07 keeps for `fixed_words` only).
 - **AC-002-09** — Given a corpus ingested with `fixed_words` only, when the operator enables `structure_aware` and runs re-chunking of the stored documents, then:
   - `structure_aware` chunks are created for every stored document of the configured types, and the local test server receives no HTTP request;
   - the existing `fixed_words` chunks keep their ids and text;
@@ -93,6 +94,7 @@ Terms used in the acceptance criteria:
   - the documents whose narrative fields or sections appear in no chunk, with the missing fields or sections named.
 - **AC-002-11** — Given the structural report of AC-002-10 on the committed fixtures, when its values are read, then for `structure_aware` the page-header share, the checkbox-grid share and the boundary-crossing share are 0, no field or section is missing and the maximum chunk size is at most 250 words. For `fixed_words` on the district fixture, the page-header share and the boundary-crossing share are above 0, so the report is shown to detect the noise it measures.
 - **AC-002-12** — Given a database with no chunks for a requested strategy (an empty corpus, or a strategy never run), when the operator runs the structural report, then it exits with a non-zero code, names the strategy that has no chunks and writes no report file. Given an unreachable database or a missing schema, re-chunking and the structural report both exit with the fatal code and name the connection without the password, as `ingest` does (AC-001-12).
+- **AC-002-13** — Given a stored chunk set whose chunks can no longer be located in the stored pages (for example, a `structure_aware` set produced by older rules and not re-chunked), when the operator runs the structural report, then the report file is still written and the summary printed; the metrics leave that document's set out; the report lists it under stale chunk sets with its source URL, strategy and the ordinal of the first chunk that could not be located; the summary tells the operator to run re-chunking; and the command exits with code 3.
 
 ## Amendment of spec 001
 This spec amends **AC-001-07**. Spec 001 must be edited and re-approved together with this spec, and the plan decides how. This spec does not edit spec 001. The current AC-001-07 requires two things of *every* chunk, whatever its strategy: its text must be found in the concatenated text of its pages, and every page with extractable text must be covered. `structure_aware` leaves out removed content by design, so the amended criterion keeps those two clauses for `fixed_words` only.
