@@ -1,9 +1,9 @@
 # ADR-0003: Structure detection from extracted line text with per-type rules
 
-- **Status:** proposed
+- **Status:** accepted (2026-11-07, with spec 002)
 - **Date:** 2026-11-07
 - **Originating spec:** 002
-- **Decided by:** Tiago Meilan (pending, with the approval of spec 002)
+- **Decided by:** Tiago Meilan
 
 ## Context
 Spec 002 chunks each BSEE document type by its own structure: Form 2010 narrative fields 17–24 for district reports, Contents-listed sections for panel reports, heading lines for Safety Alerts. It also removes page furniture (Form 2010 page header, panel page numbers, alert Contact/Phone lines). The text is already extracted page by page with pypdfium2 (ADR-0002) and stored line by line. The pipeline runs on a workstation and in CI without a GPU or network access to a model, and the repository is MIT-licensed. Three document types cover the whole corpus (690 documents in the local sample: 567 district, 88 alerts, 35 panel).
