@@ -32,7 +32,7 @@ def test_identity_and_params() -> None:
     chunker = StructureAwareChunker()
 
     assert chunker.id == "structure_aware"
-    assert dict(chunker.params) == {"size_cap": 250, "version": 1}
+    assert dict(chunker.params) == {"size_cap": 250, "version": 2}
     assert isinstance(chunker, Chunker)
 
 
@@ -49,7 +49,7 @@ def test_registered_in_the_strategy_registry() -> None:
     chunkers = ChunkerPlan.from_settings(settings).for_doc_type("panel_report")
 
     assert [c.id for c in chunkers] == ["fixed_words", "structure_aware"]
-    assert dict(chunkers[1].params) == {"size_cap": 250, "version": 1}
+    assert dict(chunkers[1].params) == {"size_cap": 250, "version": 2}
 
 
 def test_cut_at_the_last_paragraph_break_within_the_cap() -> None:

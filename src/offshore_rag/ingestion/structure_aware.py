@@ -30,7 +30,7 @@ from offshore_rag.ingestion.pdf import PageText
 from offshore_rag.ingestion.structure import ALERT, DocumentStructure, Line, Segment, detect_structure
 
 NOT_RECOGNIZED = "structure_not_recognized"
-VERSION = 1
+VERSION = 2  # 2: Contents leaders with `…` no longer end up in panel section labels (T90)
 
 _BREAK_END = re.compile(r"[.:?!][\"')\]]*$")
 _BULLET = re.compile(r"^([•�\-–]|\d+[.)]|[a-z][.)])$")

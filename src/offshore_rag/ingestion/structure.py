@@ -185,7 +185,8 @@ _FIGURE_LIST_KEYS = frozenset(
 _ACRONYM_KEYS = frozenset(
     {"acronyms", "abbreviations", "abbreviations and acronyms", "acronyms and abbreviations", "list of acronyms"}
 )
-_CONTENTS_ENTRY = re.compile(r"^(.*?\S)[\s._]+(\d+|[ivxlc]+)$")
+# Leaders between title and page number: spaces, dots (`. . .`), underscores and Unicode ellipses (`………`, T90).
+_CONTENTS_ENTRY = re.compile(r"^(.*?[^\s._…])[\s._…]+(\d+|[ivxlc]+)$")
 
 
 def _panel(pages: Sequence[PageText]) -> DocumentStructure | None:

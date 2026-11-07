@@ -147,6 +147,33 @@ def test_panel_title_page_is_preamble() -> None:
     assert _segment_text(structure, structure.segments[0]) == ["OCS Report", "Investigation of a Dropped Load"]
 
 
+def test_panel_contents_leaders_are_dropped_from_section_labels() -> None:
+    # T90: built as PageText because the core PDF font cannot encode `…`; the leaders reach us as parse_pdf text.
+    pages = [
+        PageText(1, "OCS Report\nInvestigation of a Fire", image_only=False),
+        PageText(
+            2,
+            "Contents\nChronology of Events………… 12\nFindings . . . . . . . 14\nConclusions…15\nRecommendations ……… xii",
+            image_only=False,
+        ),
+        PageText(3, "12\nChronology of Events\nThe chronology text.", image_only=False),
+        PageText(4, "14\nFindings\nThe findings text.\nConclusions\nThe conclusions text.", image_only=False),
+        PageText(5, "15\nRecommendations\nThe recommendations text.", image_only=False),
+    ]
+
+    structure = _detect_pages(pages)
+
+    assert _labels(structure) == ["preamble", "Chronology of Events", "Findings", "Conclusions", "Recommendations"]
+    for segment in structure.segments[1:]:
+        assert _segment_text(structure, segment)[0] == segment.label
+
+
+def _detect_pages(pages: list[PageText]) -> DocumentStructure:
+    structure = detect_structure(pages, "panel_report")
+    assert structure is not None
+    return structure
+
+
 def test_panel_without_headings_is_not_recognized() -> None:
     assert detect_structure(_pages(pdfs.panel_without_headings_pdf()), "panel_report") is None
 
