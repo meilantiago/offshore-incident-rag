@@ -4,7 +4,7 @@ Small, ordered tasks grouped in milestones. Each milestone is one invocation of 
 
 Integration tests need Postgres: `docker compose up -d db` and `TEST_DATABASE_URL` set (see `.env.example`).
 
-- [ ] **T01** Red acceptance tests, fixtures and AC-001-07 amendment in tests
+- [x] **T01** Red acceptance tests, fixtures and AC-001-07 amendment in tests
   - AC: AC-002-01, AC-002-02, AC-002-03, AC-002-04, AC-002-05, AC-002-06, AC-002-07, AC-002-08, AC-002-09, AC-002-10, AC-002-11, AC-002-12
   - Files: `tests/ingestion/test_chunker_selection.py` (AC-002-01, AC-002-02), `tests/ingestion/test_district_structure.py` (AC-002-03, AC-002-04), `tests/ingestion/test_panel_structure.py` (AC-002-05), `tests/ingestion/test_alert_structure.py` (AC-002-06), `tests/ingestion/test_structure_fallback.py` (AC-002-07), `tests/ingestion/test_structure_aware_invariants.py` (AC-002-08), `tests/ingestion/test_rechunk.py` (AC-002-09, AC-002-12), `tests/ingestion/test_structural_report.py` (AC-002-10, AC-002-11, AC-002-12), `tests/ingestion/test_chunking.py` (AC-001-07 substring and coverage checks on `fixed_words` sets only), `tests/support/pdfs.py` (generators: MMS "Notice No. N" alert, district without fields 17–24, panel without headings, image-only page between two text pages), `tests/support/trim_pdf.py`, `tests/fixtures/bsee/` (trimmed district, panel and Safety Alert PDFs), `tests/fixtures/bsee/SOURCES.md`
   - Test first: the tests themselves, written by `test-writer` from the spec and `plan.md#Contracts`

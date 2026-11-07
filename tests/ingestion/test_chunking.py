@@ -1,4 +1,9 @@
-"""AC-001-07: chunk invariants (document, strategy, page range, text, coverage) and separate chunk sets."""
+"""AC-001-07: chunk invariants (document, strategy, page range, text, coverage) and separate chunk sets.
+
+As amended by spec 002: the substring and coverage clauses apply to `fixed_words` chunk sets only; chunks of other
+strategies meet the guarantees of the spec that defines them (for `structure_aware`, AC-002-08, tested in
+tests/ingestion/test_structure_aware_invariants.py).
+"""
 
 from __future__ import annotations
 
@@ -14,9 +19,13 @@ from tests.support.ingest import EXIT_OK, REAL_ALERT_PDF, TEST_USER_AGENT, Inges
 
 
 def _check_chunk_set(
-    chunks: list[dict[str, Any]], pages: dict[int, tuple[str, bool]], page_count: int, label: str
+    chunks: list[dict[str, Any]], pages: dict[int, tuple[str, bool]], page_count: int, label: str, chunker: str
 ) -> None:
-    """Invariants of AC-001-07 for one document and one (chunker, params) set."""
+    """Invariants of AC-001-07 for one document and one (chunker, params) set.
+
+    Every strategy: chunks, unique ordinals, a valid page range and non-empty text. `fixed_words` only: the text is
+    found in the concatenated text of its pages, and every page with extractable text is covered.
+    """
     assert chunks, f"{label}: no chunks"
     ordinals = [c["ordinal"] for c in chunks]
     assert len(ordinals) == len(set(ordinals)), f"{label}: repeated ordinals {ordinals}"
@@ -26,9 +35,13 @@ def _check_chunk_set(
         assert 1 <= ps <= pe <= page_count, f"{label}: bad page range {ps}..{pe} of {page_count}"
         text = norm_ws(c["text"])
         assert text, f"{label}: empty chunk {c['ordinal']}"
+        covered.update(range(ps, pe + 1))
+        if chunker != "fixed_words":
+            continue
         window = norm_ws(" ".join(pages[n][0] for n in range(ps, pe + 1)))
         assert text in window, f"{label}: chunk {c['ordinal']} text not found in pages {ps}..{pe}"
-        covered.update(range(ps, pe + 1))
+    if chunker != "fixed_words":
+        return
     text_pages = {n for n, (t, image_only) in pages.items() if not image_only and t.strip()}
     assert text_pages <= covered, f"{label}: pages with text not covered by any chunk: {sorted(text_pages - covered)}"
 
@@ -47,7 +60,7 @@ def test_ac_001_07_fixed_word_chunker_invariants() -> None:
     assert dict(chunker.params) == {"size": 50, "overlap": 10}
     pages = {p.number: (p.text, p.image_only) for p in parsed.pages}
     rows = [{"ordinal": d.ordinal, "page_start": d.page_start, "page_end": d.page_end, "text": d.text} for d in drafts]
-    _check_chunk_set(rows, pages, 4, "unit")
+    _check_chunk_set(rows, pages, 4, "unit", chunker.id)
     assert any(d.page_start < d.page_end for d in drafts), "a window crossing a page break spans both pages"
 
 
@@ -64,7 +77,7 @@ def _db_check_all(env: IngestEnv) -> None:
         groups[key].append(c)
     for (url, chunker, params), group in groups.items():
         pages = {n: (t, img) for n, t, img in env.pages(url)}
-        _check_chunk_set(group, pages, group[0]["page_count"], f"{url} {chunker} {params}")
+        _check_chunk_set(group, pages, group[0]["page_count"], f"{url} {chunker} {params}", chunker)
 
 
 @pytest.mark.integration

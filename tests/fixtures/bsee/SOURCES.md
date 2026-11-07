@@ -27,3 +27,23 @@ and are not committed.
 Derived fixture (not a recording): `safety_alert_detail_no_pdf.html` is `safety_alert_detail.html` edited by hand: the
 attachment field (the PDF link) is removed and the title changed to Safety Alert 395, to reproduce a BSEE detail page
 published with no file (https://www.bsee.gov/safety-alerts/bsee-safety-alert-395-electrical-equipment-in-hazardous-locations-increase-risk-of, observed 2026-11-05).
+
+## Spec 002 fixtures (structure-aware chunking)
+
+Taken from the local sample ingested with spec 001, whose files were retrieved from bsee.gov on **2026-11-05**
+(`retrieved_at` of each document row) with the same User-Agent. They were cut on 2026-11-07 with
+`tests/support/trim_pdf.py` (pypdfium2), which keeps whole pages and their published text layer; the text that
+`parse_pdf` extracts from each committed file is identical to the text it extracts from the same pages of the source
+file (checked when cutting). No third-party photograph is committed: the district and panel pages kept have no
+images, and the one photograph of the Safety Alert was removed (object and pixel data); the federal letterhead and
+seal stay.
+
+| File | Source URL | Source sha256 | Trimming | Committed sha256 |
+|---|---|---|---|---|
+| `district-mp-42-l-2020.pdf` | https://www.bsee.gov/sites/bsee.gov/files/mp-42-cantium-9-sep-2020.pdf (listed on https://www.bsee.gov/what-we-do/incident-investigations/district-investigation-reports) | `0030898393870d994a14e5e1e8df72bbfa0b552e369d2255c6f0b90f0b35d4df` | None: the original file, 3 pages, 619,231 bytes, no images. MMS Form 2010, Main Pass 42 L, Cantium LLC, 9 Sep 2020. Page 1 is the checkbox grid; fields 17–23 have text (17 over 250 words), 24 has only its title; repeated header lines `For Public Release`, `MMS - FORM 2010 PAGE: N OF 3`, `EV2010R 05-JAN-2021`. | same as source |
+| `panel-mms-2009-042-trimmed.pdf` | https://www.bsee.gov/sites/bsee.gov/files/incident-statisticssummaries-fatalities/reports/2009-042-pdf.pdf (detail page https://www.bsee.gov/panel-investigation/investigation-of-fatality-from-falling-load-main-pass-block-30-well-no-a-14) | `d10324074a861ca0d1f3420def367185bb8dd98cecb93a10fc00f541c14db0ee` | Pages 3–9 of 36 kept (`--pages 3-9`), 23,058 bytes: Contents (i), List of Figures and Tables (ii), Abbreviations and Acronyms (1–2), Executive Summary (3–4), Introduction with Authority and Background (5). The page-number line is the first line of every page. No images on those pages. OCS Report MMS 2009-042, Main Pass Block 30 fatality, 7 March 2009. | `de017e0da8bb6a2cc11e8af9c0360b0066db77fcbdadd068e8963f55be1ca848` |
+| `safety-alert-526-trimmed.pdf` | https://www.bsee.gov/sites/bsee.gov/files/2026-10/MMA%20Safety%20Alert%20526_Prevent%20Battery%20Ruptures_30OCT26.pdf (detail page https://www.bsee.gov/safety-alerts/mma-safety-alert-526-prevent-battery-ruptures) | `991f38066a14e750940ea5c4fa5065ef27d4c544f4ea3a4ab93bb5d4162e1a03` | All 3 pages kept; the photograph on page 1 (443 x 225 pt, 848 x 430 px, two battery photos behind the Figure 1 and Figure 2 captions) removed with `--drop-images-over 60000`, 303,906 bytes. The captions stay. Recent format: `Safety Alert No.`, `Date:`, `Contact:`, `Phone:`, title, heading lines `Background:`, `Incident 1 (Figure 1):`, `Incident 2 (Figure 2):`, `Incident Findings:`. | `669a82c31931728a0362f7c7103b125300335b0406080f27b13552a6399b0af1` |
+
+Generated at test time by `tests/support/pdfs.py` (not committed): an MMS-era "Notice No. N" alert with numbered
+paragraphs and no heading lines, a district report without fields 17–24, a panel report without a Contents page or
+headings, and a Form 2010 district report with an image-only page between two text pages.
